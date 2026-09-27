@@ -176,7 +176,7 @@ Splash → Login / Register (OTP)
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+This project is **proprietary software**. The source code is protected — you may **not** copy, modify, or redistribute it. You may only use the app by downloading the APK. See the [LICENSE](LICENSE) file for full details.
 
 ---
 
