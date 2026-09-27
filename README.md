@@ -12,7 +12,26 @@ Split bills, track who owes who, and settle up — without the awkward conversat
 <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge"/>
 <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white"/>
 
+<br/><br/>
+
+<a href="https://github.com/Crux-15/Taka-Koi-/releases/latest/download/Taka-Koi.apk">
+  <img src="https://img.shields.io/badge/⬇️%20Download%20APK-Taka%20Koi%3F%20v1.0.0-FFD700?style=for-the-badge&logoColor=black" alt="Download APK"/>
+</a>
+
 </div>
+
+---
+
+## 📲 Install on Android
+
+> **No Play Store needed** — just download and install directly!
+
+1. On your Android phone, open this link: **[⬇️ Download Taka Koi?.apk](https://github.com/Crux-15/Taka-Koi-/releases/latest/download/Taka-Koi.apk)**
+2. If asked *"Allow from this source"* → tap **Allow**
+3. Tap the downloaded file → tap **Install**
+4. Done! Open **Taka Koi?** and sign in 🎉
+
+> **Note:** If you see *"Install blocked"*, go to your phone's **Settings → Security → Install unknown apps** and allow your browser.
 
 ---
 
