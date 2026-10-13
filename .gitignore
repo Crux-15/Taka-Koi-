@@ -64,3 +64,6 @@ key.properties
 
 # Flutter plugin cache
 .flutter-plugins
+
+# APK files
+*.apk

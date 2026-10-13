@@ -105,7 +105,22 @@ class AuthController extends ChangeNotifier {
       notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
+      debugPrint('FirebaseAuthException during Google Sign-In: ${e.code} - ${e.message}');
       _setError(e.message ?? 'Google sign-in failed.');
+      return false;
+    } catch (e, stack) {
+      debugPrint('Exception during Google Sign-In: $e\n$stack');
+      final msg = e.toString();
+      if (msg.contains('network_error') || msg.contains('NetworkException')) {
+        _setError('No internet connection. Please check your network.');
+      } else if (msg.contains('sign_in_canceled')) {
+        // User explicitly tapped outside or backed out of the account picker
+        _status = AuthStatus.unauthenticated;
+        _errorMessage = null;
+        notifyListeners();
+      } else {
+        _setError('Google sign-in failed: $msg');
+      }
       return false;
     }
   }
@@ -121,6 +136,10 @@ class AuthController extends ChangeNotifier {
       return true;
     } on FirebaseAuthException catch (e) {
       _setError(_mapFirebaseError(e.code));
+      return false;
+    } catch (e) {
+      // Catches network errors, Firestore errors during fetchUser, etc.
+      _setError('Sign-in failed. Please check your connection and try again.');
       return false;
     }
   }
