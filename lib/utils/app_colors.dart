@@ -12,21 +12,20 @@ class AppColors {
   static const Color secondary    = Color(0xFFFF6D00); // Deep orange (playful accent)
   static const Color tertiary     = Color(0xFF00BCD4); // Cyan (cool contrast)
 
-  // ── Light Theme Card Shade Colours (Dark Olive / Bronze from Hero Card) ────
-  // Matches the summary card gradient [Color(0xFF1A1600) -> Color(0xFF332C00)]
-  static const Color primaryOliveDark  = Color(0xFF1A1600); // Deepest shade of card
-  static const Color primaryOlive      = Color(0xFF262100); // Main card tone with high contrast
-  static const Color primaryOliveLight = Color(0xFF383100); // Lighter warm shade of card
-  static const Color primaryOliveMuted = Color(0xFF4D4300); // Muted border/accent shade
+  // ── Light Theme "Smart Posh" Palette ──────────────────────────────────────
+  // Eye-friendly, warm luxury: Warm Ivory canvas + Midnight Obsidian + Regal Gold
+  static const Color backgroundLight       = Color(0xFFFBF9F4); // Soft warm ivory (no eye strain/glare)
+  static const Color surfaceLight          = Color(0xFFFFFFFF); // Crisp pearl white cards
+  static const Color surfaceVariantLight   = Color(0xFFF3EFE6); // Soft warm sand surface
+  static const Color onBackgroundLight     = Color(0xFF1C1917); // Midnight charcoal (soft on eyes)
+  static const Color onSurfaceLight        = Color(0xFF1C1917);
+  static const Color onSurfaceVariantLight = Color(0xFF6B655B); // Warm muted slate
+  static const Color outlineLight          = Color(0xFFE2DBCB); // Soft warm border
 
-  // ── Light Theme ───────────────────────────────────────────────────────────
-  static const Color backgroundLight       = Color(0xFFFFFBF0); // Warm cream — sunny feel
-  static const Color surfaceLight          = Color(0xFFFFFFFF); // White cards
-  static const Color surfaceVariantLight   = Color(0xFFFFF8E1); // Amber-tinted surface
-  static const Color onBackgroundLight     = Color(0xFF1A1A1A); // Near black text
-  static const Color onSurfaceLight        = Color(0xFF1A1A1A);
-  static const Color onSurfaceVariantLight = Color(0xFF6D6457); // Warm brown-grey
-  static const Color outlineLight          = Color(0xFFE8D78A); // Yellow-tinted outline
+  // Posh Gold & Obsidian Accents for Light Mode
+  static const Color poshGold              = Color(0xFF9E6E00); // Deep regal gold for amounts & accents (warm, high contrast)
+  static const Color poshGoldLight         = Color(0xFFC59B27); // Champagne gold for indicators
+  static const Color poshObsidian          = Color(0xFF1C1917); // Midnight obsidian for buttons/titles
 
   // ── Dark Theme ────────────────────────────────────────────────────────────
   static const Color backgroundDark       = Color(0xFF0D0D0D); // Near black (logo bg)

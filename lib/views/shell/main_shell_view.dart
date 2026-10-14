@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/notification_controller.dart';
@@ -19,6 +20,7 @@ class MainShellView extends StatelessWidget {
   }
 
   void _onTap(BuildContext context, int index) {
+    HapticFeedback.selectionClick();
     switch (index) {
       case 0: context.go(AppRoutes.home);          break;
       case 1: context.go(AppRoutes.debtOverview);  break;

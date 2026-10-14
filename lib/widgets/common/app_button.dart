@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../utils/app_colors.dart';
 
 /// A premium gradient primary action button with loading state.
@@ -24,6 +25,11 @@ class AppButton extends StatelessWidget {
     this.height = 56,
   });
 
+  void _handleTap() {
+    HapticFeedback.lightImpact();
+    onPressed?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (outlined) {
@@ -31,7 +37,7 @@ class AppButton extends StatelessWidget {
         width:  width,
         height: height,
         child: OutlinedButton.icon(
-          onPressed: isLoading ? null : onPressed,
+          onPressed: isLoading || onPressed == null ? null : _handleTap,
           style: color != null ? OutlinedButton.styleFrom(
             foregroundColor: color,
             side: BorderSide(color: color!),
@@ -66,7 +72,7 @@ class AppButton extends StatelessWidget {
             minimumSize:     Size(width ?? double.infinity, height),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          onPressed: isLoading ? null : onPressed,
+          onPressed: isLoading || onPressed == null ? null : _handleTap,
           icon: icon != null && !isLoading
               ? Icon(icon, size: 20, color: Colors.white)
               : const SizedBox.shrink(),

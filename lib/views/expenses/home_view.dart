@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/expense_controller.dart';
 import '../../controllers/group_controller.dart';
@@ -640,38 +641,104 @@ class _BkashSection extends StatelessWidget {
                       ]),
                     );
                   }
-                  // Number available — show with copy button
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color:  AppColors.primary.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.primary.withOpacity(0.35), width: 1.5),
-                    ),
-                    child: Row(children: [
-                      const Icon(Icons.phone_android_rounded, size: 18, color: AppColors.primaryDark),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(
-                        number,
-                        style: const TextStyle(
-                          fontSize:   17,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                          color: AppColors.primaryDark,
+                  // Number available — show with tap-to-copy banner & open bKash action
+                  return Column(
+                    children: [
+                      Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            Clipboard.setData(ClipboardData(text: number));
+                            ScaffoldMessenger.of(homeCtx).showSnackBar(const SnackBar(
+                              content: Row(children: [
+                                Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                                SizedBox(width: 8),
+                                Text('bKash number copied to clipboard!'),
+                              ]),
+                              behavior: SnackBarBehavior.floating,
+                              duration: Duration(seconds: 2),
+                            ));
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: scheme.primary.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: scheme.primary.withOpacity(0.3), width: 1.5),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: scheme.primary.withOpacity(0.15),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(Icons.phone_android_rounded, size: 18, color: scheme.primary),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        number,
+                                        style: TextStyle(
+                                          fontSize:   17,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 1.2,
+                                          color: scheme.onSurface,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Tap anywhere to copy number',
+                                        style: TextStyle(fontSize: 11, color: scheme.primary, fontWeight: FontWeight.w600),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.copy_rounded, size: 19, color: scheme.primary),
+                              ],
+                            ),
+                          ),
                         ),
-                      )),
-                      IconButton(
-                        icon:    const Icon(Icons.copy_rounded, size: 20, color: AppColors.primaryDark),
-                        tooltip: 'Copy number',
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: number));
-                          ScaffoldMessenger.of(homeCtx).showSnackBar(const SnackBar(
-                            content: Text('✅ bKash number copied!'),
-                            duration: Duration(seconds: 2),
-                          ));
-                        },
                       ),
-                    ]),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          icon: const Icon(Icons.open_in_new_rounded, size: 16),
+                          label: const Text('Open bKash App', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFE2136E),
+                            side: const BorderSide(color: Color(0xFFE2136E), width: 1.5),
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () async {
+                            HapticFeedback.lightImpact();
+                            Clipboard.setData(ClipboardData(text: number));
+                            final appUri = Uri.parse('bkash://');
+                            final webUri = Uri.parse('https://play.google.com/store/apps/details?id=com.bKash.customerapp');
+                            try {
+                              final ok = await launchUrl(appUri, mode: LaunchMode.externalApplication);
+                              if (!ok) await launchUrl(webUri, mode: LaunchMode.externalApplication);
+                            } catch (_) {
+                              try {
+                                await launchUrl(webUri, mode: LaunchMode.externalApplication);
+                              } catch (_) {
+                                ScaffoldMessenger.of(homeCtx).showSnackBar(
+                                  const SnackBar(content: Text('bKash number copied to clipboard!')),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   );
                 },
               ),

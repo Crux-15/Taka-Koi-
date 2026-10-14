@@ -128,13 +128,56 @@ class _LogPaymentViewState extends State<LogPaymentView> {
                   return null;
                 },
               ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: () => _amountCtrl.text = debt.remainingAmount.toStringAsFixed(2),
-                icon:  const Icon(Icons.done_all_rounded, size: 16),
-                label: Text('Pay full amount ($symbol${debt.remainingAmount.toStringAsFixed(2)})'),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      _amountCtrl.text = debt.remainingAmount.toStringAsFixed(2);
+                      _formKey.currentState?.validate();
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.primary.withOpacity(0.25),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.bolt_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            '1-Tap Settle Full: ',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            '$symbol${debt.remainingAmount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               AppButton(
                 label:     'Submit Payment',
