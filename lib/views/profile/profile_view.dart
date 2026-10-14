@@ -229,7 +229,7 @@ class _ProfileViewState extends State<ProfileView> {
                         leading: const Icon(Icons.exit_to_app_rounded, color: AppColors.error),
                         title:   const Text('Leave Group', style: TextStyle(color: AppColors.error)),
                         subtitle:const Text('Request to leave — requires admin approval'),
-                        onTap:   () => _confirmLeaveGroup(context, groupCtrl, group, user!),
+                        onTap:   () => _confirmLeaveGroup(context, groupCtrl, group, user),
                       ),
                   ],
                 ),

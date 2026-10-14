@@ -435,7 +435,7 @@ class GroupController extends ChangeNotifier {
         .snapshots()
         .map((snap) {
           if (!snap.exists) return null;
-          final data = snap.data() as Map<String, dynamic>?;
+          final data = snap.data();
           return data?['status'] as String?;
         });
   }
@@ -444,7 +444,7 @@ class GroupController extends ChangeNotifier {
   Future<String?> fetchMemberBkash(String uid) async {
     try {
       final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
-      final data = doc.data() as Map<String, dynamic>?;
+      final data = doc.data();
       return data?['bkashNumber'] as String?;
     } catch (_) {
       return null;

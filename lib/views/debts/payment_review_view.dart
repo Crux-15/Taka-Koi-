@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
@@ -120,7 +120,6 @@ class _PaymentReviewViewState extends State<PaymentReviewView> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
     final myUid  = context.read<AuthController>().user?.uid ?? '';
     final symbol = _symbol;
 

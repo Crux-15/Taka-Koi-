@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
@@ -29,6 +30,24 @@ class _LogExpenseViewState extends State<LogExpenseView> {
   final Map<String, bool>   _selectedMembers = {};
   final Map<String, TextEditingController> _customAmounts = {};
 
+  double get _totalAmount => double.tryParse(_amountCtrl.text.trim()) ?? 0.0;
+
+  double get _othersAllocated {
+    final selected = _selectedMembers.entries.where((e) => e.value).map((e) => e.key).toList();
+    double sum = 0.0;
+    for (final uid in selected) {
+      final amt = double.tryParse(_customAmounts[uid]?.text.trim() ?? '') ?? 0.0;
+      sum += amt;
+    }
+    return sum;
+  }
+
+  double get _remainingBalance {
+    final total = _totalAmount;
+    final allocated = _othersAllocated;
+    return total - allocated;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -57,7 +76,7 @@ class _LogExpenseViewState extends State<LogExpenseView> {
 
     if (members.isEmpty) return {};
 
-    final total = double.tryParse(_amountCtrl.text.trim()) ?? 0;
+    final total = _totalAmount;
     final splits = <String, SplitEntry>{};
 
     if (_splitType == AppConstants.splitEqual) {
@@ -99,6 +118,36 @@ class _LogExpenseViewState extends State<LogExpenseView> {
         const SnackBar(content: Text('Please select at least one member to split with.'), backgroundColor: AppColors.error),
       );
       return;
+    }
+
+    // Custom Split Validation Guard
+    if (_splitType == AppConstants.splitCustom) {
+      final total = _totalAmount;
+      final othersTotal = _othersAllocated;
+
+      if (_loggerIncluded) {
+        if (othersTotal > total + 0.01) {
+          final over = (othersTotal - total).toStringAsFixed(2);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Custom shares exceed total by ${group.currencySymbol}$over. Please adjust amounts.'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+          return;
+        }
+      } else {
+        final diff = (othersTotal - total).abs();
+        if (diff > 0.01) {
+          final msg = othersTotal > total
+              ? 'Custom shares exceed total by ${group.currencySymbol}${(othersTotal - total).toStringAsFixed(2)}.'
+              : 'Please allocate remaining ${group.currencySymbol}${(total - othersTotal).toStringAsFixed(2)} to members.';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg), backgroundColor: AppColors.error),
+          );
+          return;
+        }
+      }
     }
 
     final ok = await expCtrl.logExpense(
@@ -215,6 +264,19 @@ class _LogExpenseViewState extends State<LogExpenseView> {
             const Divider(),
             const SizedBox(height: 8),
 
+            // Live Custom Split Tracker (shown when Custom split is active)
+            if (_splitType == AppConstants.splitCustom) ...[
+              _LiveSplitTracker(
+                total:           _totalAmount,
+                othersAllocated: _othersAllocated,
+                remaining:       _remainingBalance,
+                loggerIncluded:  _loggerIncluded,
+                userName:        user.name,
+                symbol:          group.currencySymbol,
+              ),
+              const SizedBox(height: 12),
+            ],
+
             // Member Selection
             Text('Split With', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 8),
@@ -232,13 +294,54 @@ class _LogExpenseViewState extends State<LogExpenseView> {
                 if (_splitType == AppConstants.splitCustom && (_selectedMembers[m.userId] ?? false))
                   Padding(
                     padding: const EdgeInsets.only(left: 40, bottom: 8),
-                    child: AppTextField(
-                      label:        '${m.name}\'s share',
-                      hint:         '0.00',
-                      controller:   _customAmounts[m.userId]!,
-                      prefixIcon:   Icons.person_rounded,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged:    (_) => setState(() {}),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        AppTextField(
+                          label:        '${m.name}\'s share',
+                          hint:         '0.00',
+                          controller:   _customAmounts[m.userId]!,
+                          prefixIcon:   Icons.person_rounded,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          onChanged:    (_) => setState(() {}),
+                        ),
+                        if (_remainingBalance > 0.01 &&
+                            (double.tryParse(_customAmounts[m.userId]!.text.trim()) ?? 0.0) == 0.0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () {
+                                HapticFeedback.lightImpact();
+                                _customAmounts[m.userId]!.text = _remainingBalance.toStringAsFixed(2);
+                                setState(() {});
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
+                                  color: scheme.primary.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: scheme.primary.withOpacity(0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.bolt_rounded, size: 14, color: scheme.primary),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Auto-fill remaining: ${group.currencySymbol}${_remainingBalance.toStringAsFixed(2)}',
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: scheme.primary,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
               ],
@@ -310,29 +413,290 @@ class _SplitPreview extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (splits.isEmpty) return const SizedBox.shrink();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.primary.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.primary.withOpacity(0.2)),
+        color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceLight,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? AppColors.outlineDark : AppColors.outlineLight,
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Split Preview', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.primary, fontSize: 13)),
-          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.pie_chart_rounded, size: 16, color: scheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Split Preview (${splits.length} ${splits.length == 1 ? "member" : "members"})',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: scheme.primary,
+                  fontSize: 13,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           ...splits.entries.map((e) => Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(e.value.name, style: const TextStyle(fontSize: 13)),
-                Text('$symbol${e.value.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(
+                  e.value.name,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: scheme.onSurface,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  '$symbol${e.value.amount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
+                  ),
+                ),
               ],
             ),
           )),
+        ],
+      ),
+    );
+  }
+}
+
+/// Live Remaining Balance Tracker during custom splits.
+/// Provides real-time calculation, prevents mental math, and enforces split balance.
+class _LiveSplitTracker extends StatelessWidget {
+  final double total;
+  final double othersAllocated;
+  final double remaining;
+  final bool   loggerIncluded;
+  final String userName;
+  final String symbol;
+
+  const _LiveSplitTracker({
+    required this.total,
+    required this.othersAllocated,
+    required this.remaining,
+    required this.loggerIncluded,
+    required this.userName,
+    required this.symbol,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
+    if (total <= 0) {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceVariantDark : AppColors.surfaceVariantLight,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isDark ? AppColors.outlineDark : AppColors.outlineLight),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.info_outline_rounded, size: 18, color: isDark ? AppColors.onSurfaceVariantDark : AppColors.poshGold),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Enter total amount above to track live split balance.',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: isDark ? AppColors.onSurfaceVariantDark : AppColors.onSurfaceVariantLight,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final isOverAllocated = remaining < -0.01;
+    final isPerfectZero   = remaining.abs() <= 0.01;
+
+    // Status styling
+    Color statusBg;
+    Color statusBorder;
+    Color statusColor;
+    String statusTitle;
+    IconData statusIcon;
+
+    if (isOverAllocated) {
+      statusBg     = isDark ? const Color(0x28FF4757) : const Color(0xFFFFF0F0);
+      statusBorder = isDark ? const Color(0x55FF4757) : const Color(0xFFFFCDD2);
+      statusColor  = isDark ? const Color(0xFFFF6B78) : const Color(0xFFD32F2F);
+      statusTitle  = 'Over-allocated by $symbol${(-remaining).toStringAsFixed(2)}';
+      statusIcon   = Icons.warning_amber_rounded;
+    } else if (loggerIncluded) {
+      // In logger included mode: remaining is user's auto-balanced share
+      if (isPerfectZero) {
+        statusBg     = isDark ? const Color(0x2800C896) : const Color(0xFFE8F8F3);
+        statusBorder = isDark ? const Color(0x5500C896) : const Color(0xFFA7E8D4);
+        statusColor  = isDark ? AppColors.success : const Color(0xFF007A5A);
+        statusTitle  = 'All $symbol${total.toStringAsFixed(2)} allocated to others (Your share: $symbol 0.00)';
+        statusIcon   = Icons.check_circle_rounded;
+      } else {
+        statusBg     = isDark ? const Color(0x28FFD700) : const Color(0xFFFDF8EE);
+        statusBorder = isDark ? const Color(0x55FFD700) : const Color(0xFFEADBBE);
+        statusColor  = isDark ? AppColors.primaryLight : AppColors.poshGold;
+        statusTitle  = 'Your Share: $symbol${remaining.toStringAsFixed(2)} (auto-balanced)';
+        statusIcon   = Icons.balance_rounded;
+      }
+    } else {
+      // In logger NOT included mode: all must be allocated to others
+      if (isPerfectZero) {
+        statusBg     = isDark ? const Color(0x2800C896) : const Color(0xFFE8F8F3);
+        statusBorder = isDark ? const Color(0x5500C896) : const Color(0xFFA7E8D4);
+        statusColor  = isDark ? AppColors.success : const Color(0xFF007A5A);
+        statusTitle  = '100% Split Balanced ($symbol${total.toStringAsFixed(2)})';
+        statusIcon   = Icons.check_circle_rounded;
+      } else {
+        statusBg     = isDark ? const Color(0x28FF9100) : const Color(0xFFFFF8EC);
+        statusBorder = isDark ? const Color(0x55FF9100) : const Color(0xFFFFE0B2);
+        statusColor  = isDark ? AppColors.warning : const Color(0xFFC76A00);
+        statusTitle  = '$symbol${remaining.toStringAsFixed(2)} remaining to assign to members';
+        statusIcon   = Icons.timelapse_rounded;
+      }
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: statusBg,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: statusBorder, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.2 : 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Status Badge
+          Row(
+            children: [
+              Icon(statusIcon, size: 18, color: statusColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  statusTitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: statusColor,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, thickness: 0.8, color: statusBorder.withOpacity(0.5)),
+          const SizedBox(height: 12),
+
+          // 3-Metric Summary Row
+          Row(
+            children: [
+              Expanded(
+                child: _MetricTile(
+                  label: 'Total',
+                  value: '$symbol${total.toStringAsFixed(2)}',
+                  textColor: scheme.onSurface,
+                ),
+              ),
+              Container(width: 1, height: 32, color: statusBorder.withOpacity(0.5)),
+              Expanded(
+                child: _MetricTile(
+                  label: 'Others',
+                  value: '$symbol${othersAllocated.toStringAsFixed(2)}',
+                  textColor: scheme.onSurface,
+                ),
+              ),
+              Container(width: 1, height: 32, color: statusBorder.withOpacity(0.5)),
+              Expanded(
+                child: _MetricTile(
+                  label: loggerIncluded ? 'Your Share' : 'Remaining',
+                  value: '$symbol${(isOverAllocated ? 0.0 : remaining).toStringAsFixed(2)}',
+                  textColor: statusColor,
+                  isBold: true,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color textColor;
+  final bool isBold;
+
+  const _MetricTile({
+    required this.label,
+    required this.value,
+    required this.textColor,
+    this.isBold = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 3),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isBold ? FontWeight.w800 : FontWeight.w700,
+                color: textColor,
+              ),
+            ),
+          ),
         ],
       ),
     );

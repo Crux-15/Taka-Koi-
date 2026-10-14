@@ -63,6 +63,9 @@ class _HomeViewState extends State<HomeView> {
     final isAdmin      = group.adminId == user.uid;
     final memberTotals = expCtrl.computeMemberTotals();
     final myTotal      = memberTotals[user.uid] ?? 0.0;
+    final groupTotal   = memberTotals.values.fold<double>(0.0, (s, amt) => s + amt);
+    final myRatio      = groupTotal > 0 ? (myTotal / groupTotal) : 0.0;
+    final myPercent    = (myRatio * 100).round();
 
     // Show ALL members, sorted by total (descending). Users with no expenses show ₹0.00.
     final allOtherMembers = group.members.values
@@ -168,7 +171,34 @@ class _HomeViewState extends State<HomeView> {
                             '${group.currencySymbol}${myTotal.toStringAsFixed(2)}',
                             style: const TextStyle(color: Color(0xFF0D0D0D), fontSize: 36, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 8),
+                          // Subtle ratio badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: const Color(0x1F000000), // refined translucent obsidian overlay
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.pie_chart_outline_rounded, size: 13, color: Color(0xFF1A1A1A)),
+                                const SizedBox(width: 6),
+                                Text(
+                                  groupTotal > 0
+                                      ? '$myPercent% of group total (${group.currencySymbol}${groupTotal.toStringAsFixed(2)})'
+                                      : 'No group expenses logged yet',
+                                  style: const TextStyle(
+                                    color: Color(0xFF1A1A1A),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    letterSpacing: 0.1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
                           const Text(
                             'Tap to view detailed history',
                             style: TextStyle(color: Color(0x886D5700), fontSize: 12),  // muted dark amber
@@ -390,7 +420,7 @@ class _MemberTotalCard extends StatelessWidget {
                     label: 'Total Expenses',
                     value: '$symbol${total.toStringAsFixed(2)}',
                     icon:  Icons.receipt_long_rounded,
-                    color: AppColors.primary,
+                    color: scheme.primary,
                   )),
                   const SizedBox(width: 12),
                   Expanded(child: _StatBox(
@@ -607,7 +637,7 @@ class _BkashSection extends StatelessWidget {
           children: [
             const Divider(height: 28),
             Row(children: [
-              const Icon(Icons.phone_android_rounded, size: 17, color: AppColors.primary),
+              Icon(Icons.phone_android_rounded, size: 17, color: scheme.primary),
               const SizedBox(width: 8),
               const Text('bKash Number', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             ]),
@@ -784,8 +814,8 @@ class _BkashSection extends StatelessWidget {
                   icon:  const Icon(Icons.phone_android_rounded, size: 18),
                   label: const Text('Request bKash Number'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.primaryDark,
-                    side:  const BorderSide(color: AppColors.primary, width: 1.5),
+                    foregroundColor: scheme.primary,
+                    side:  BorderSide(color: scheme.primary, width: 1.5),
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     minimumSize: Size.zero,
