@@ -37,10 +37,10 @@ class AppTheme {
   static ThemeData get light {
     final scheme = ColorScheme(
       brightness:          Brightness.light,
-      primary:             AppColors.primary,
-      onPrimary:           _onPrimary,                       // BLACK on yellow
+      primary:             AppColors.primaryOlive,           // Hero card dark olive/bronze shade
+      onPrimary:           Colors.white,                     // Crisp white on dark olive
       primaryContainer:    AppColors.surfaceVariantLight,
-      onPrimaryContainer:  AppColors.primaryDark,
+      onPrimaryContainer:  AppColors.primaryOliveDark,
       secondary:           AppColors.secondary,
       onSecondary:         Colors.white,
       secondaryContainer:  const Color(0xFFFFDCBD),          // Light orange
@@ -57,7 +57,7 @@ class AppTheme {
       onSurface:           AppColors.onSurfaceLight,
       surfaceContainerHighest: AppColors.surfaceVariantLight,
       onSurfaceVariant:    AppColors.onSurfaceVariantLight,
-      outline:             AppColors.outlineLight,
+      outline:             const Color(0xFF5A4F10),          // Subtle olive outline
       shadow:              Colors.black,
       inverseSurface:      AppColors.surfaceDark,
       onInverseSurface:    AppColors.onSurfaceDark,
@@ -82,15 +82,15 @@ class AppTheme {
           fontWeight: FontWeight.w700,
           color:      AppColors.onSurfaceLight,
         ),
-        // Subtle yellow bottom border to tie in the brand
+        // Subtle warm bottom border
         shape: const Border(
-          bottom: BorderSide(color: Color(0xFFFFF0A0), width: 1.5),
+          bottom: BorderSide(color: Color(0xFFDED6B0), width: 1.5),
         ),
       ),
       cardTheme: CardThemeData(
         color:       AppColors.surfaceLight,
         elevation:   2.0,
-        shadowColor: AppColors.primary.withOpacity(0.10),
+        shadowColor: AppColors.primaryOlive.withOpacity(0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
@@ -98,8 +98,8 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: _onPrimary,                       // BLACK text on yellow
+          backgroundColor: AppColors.primaryOlive,
+          foregroundColor: Colors.white,                     // White text on dark olive
           elevation:       0,
           minimumSize:     const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
@@ -115,8 +115,8 @@ class AppTheme {
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          foregroundColor: AppColors.primaryDark,
-          side:            const BorderSide(color: AppColors.primary, width: 2),
+          foregroundColor: AppColors.primaryOliveDark,
+          side:            const BorderSide(color: AppColors.primaryOlive, width: 2),
           minimumSize:     const Size(double.infinity, 56),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -130,7 +130,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.primaryDark,
+          foregroundColor: AppColors.primaryOliveDark,
           textStyle: const TextStyle(
             fontFamily: _fontFamily,
             fontSize:   14,
@@ -152,7 +152,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:   const BorderSide(color: AppColors.primary, width: 2),
+          borderSide:   const BorderSide(color: AppColors.primaryOlive, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -175,19 +175,19 @@ class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor:  AppColors.surfaceVariantLight,
-        selectedColor:    AppColors.primary.withOpacity(0.20),
+        selectedColor:    AppColors.primaryOlive.withOpacity(0.18),
         labelStyle: const TextStyle(fontFamily: _fontFamily, fontSize: 13),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         side: BorderSide.none,
       ),
       dividerTheme: const DividerThemeData(
-        color:     Color(0xFFF0E88A),   // Warm yellow tint divider
+        color:     Color(0xFFE8E0C0),   // Warm subtle divider
         thickness: 1,
         space:     1,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor:      AppColors.surfaceLight,
-        selectedItemColor:    AppColors.primaryDark,   // Darker yellow so icon is clearly seen
+        selectedItemColor:    AppColors.primaryOliveDark,   // Dark olive so icon is clearly seen
         unselectedItemColor:  AppColors.onSurfaceVariantLight,
         showUnselectedLabels: true,
         elevation:            10,
@@ -199,24 +199,24 @@ class AppTheme {
         behavior: SnackBarBehavior.floating,
       ),
       floatingActionButtonTheme: const FloatingActionButtonThemeData(
-        backgroundColor: AppColors.primary,
-        foregroundColor: _onPrimary,                   // BLACK icon on yellow FAB
+        backgroundColor: AppColors.primaryOlive,
+        foregroundColor: Colors.white,                   // White icon on dark olive FAB
         elevation:       4,
         shape: CircleBorder(),
       ),
       switchTheme: SwitchThemeData(
         thumbColor:  WidgetStateProperty.resolveWith((s) =>
-            s.contains(WidgetState.selected) ? AppColors.primaryDark : null),
+            s.contains(WidgetState.selected) ? AppColors.primaryOliveDark : null),
         trackColor:  WidgetStateProperty.resolveWith((s) =>
-            s.contains(WidgetState.selected) ? AppColors.primary.withOpacity(0.4) : null),
+            s.contains(WidgetState.selected) ? AppColors.primaryOlive.withOpacity(0.35) : null),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.primary,
+        color: AppColors.primaryOlive,
       ),
       tabBarTheme: const TabBarThemeData(
-        labelColor:         AppColors.primaryDark,
+        labelColor:         AppColors.primaryOliveDark,
         unselectedLabelColor: AppColors.onSurfaceVariantLight,
-        indicatorColor:     AppColors.primary,
+        indicatorColor:     AppColors.primaryOliveLight,
         indicatorSize:      TabBarIndicatorSize.label,
         labelStyle:         TextStyle(fontFamily: _fontFamily, fontWeight: FontWeight.w700, fontSize: 14),
         unselectedLabelStyle: TextStyle(fontFamily: _fontFamily, fontWeight: FontWeight.w500, fontSize: 14),

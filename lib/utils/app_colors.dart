@@ -12,6 +12,13 @@ class AppColors {
   static const Color secondary    = Color(0xFFFF6D00); // Deep orange (playful accent)
   static const Color tertiary     = Color(0xFF00BCD4); // Cyan (cool contrast)
 
+  // ── Light Theme Card Shade Colours (Dark Olive / Bronze from Hero Card) ────
+  // Matches the summary card gradient [Color(0xFF1A1600) -> Color(0xFF332C00)]
+  static const Color primaryOliveDark  = Color(0xFF1A1600); // Deepest shade of card
+  static const Color primaryOlive      = Color(0xFF262100); // Main card tone with high contrast
+  static const Color primaryOliveLight = Color(0xFF383100); // Lighter warm shade of card
+  static const Color primaryOliveMuted = Color(0xFF4D4300); // Muted border/accent shade
+
   // ── Light Theme ───────────────────────────────────────────────────────────
   static const Color backgroundLight       = Color(0xFFFFFBF0); // Warm cream — sunny feel
   static const Color surfaceLight          = Color(0xFFFFFFFF); // White cards

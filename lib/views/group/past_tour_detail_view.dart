@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -155,8 +155,8 @@ class _PastTourDetailViewState extends State<PastTourDetailView>
                           return Card(
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: AppColors.primary.withOpacity(0.12),
-                                child: const Icon(Icons.receipt_rounded, color: AppColors.primary, size: 20),
+                                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+                                child: Icon(Icons.receipt_rounded, color: Theme.of(context).colorScheme.primary, size: 20),
                               ),
                               title: Text(e.comment.isNotEmpty ? e.comment : 'Expense',
                                   style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -166,9 +166,9 @@ class _PastTourDetailViewState extends State<PastTourDetailView>
                               ),
                               trailing: Text(
                                 '$symbol${e.amount.toStringAsFixed(2)}',
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontWeight: FontWeight.w700,
-                                  color:      AppColors.primary,
+                                  color:      Theme.of(context).colorScheme.primary,
                                   fontSize:   15,
                                 ),
                               ),
