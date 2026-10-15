@@ -80,6 +80,9 @@ class _LogPaymentViewState extends State<LogPaymentView> {
 
     if (debt == null) return Scaffold(appBar: AppBar(title: const Text('Log Payment')), body: const Center(child: AppLoader()));
 
+    final isDark    = Theme.of(context).brightness == Brightness.dark;
+    final accentGold = isDark ? const Color(0xFFE5B83B) : const Color(0xFF9E6E00);
+
     return Scaffold(
       appBar: AppBar(title: const Text('Log Payment')),
       body: SingleChildScrollView(
@@ -89,28 +92,13 @@ class _LogPaymentViewState extends State<LogPaymentView> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Debt summary card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient:     AppColors.cardGradient,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Paying to', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                    Text(debt.toUserName, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        _InfoChip(label: 'Original', value: '$symbol${debt.originalAmount.toStringAsFixed(2)}'),
-                        const SizedBox(width: 12),
-                        _InfoChip(label: 'Remaining', value: '$symbol${debt.remainingAmount.toStringAsFixed(2)}'),
-                      ],
-                    ),
-                  ],
-                ),
+              // ── Midnight Obsidian & Burnished Gold Debt Summary Card ────────
+              _DebtSummaryCard(
+                toUserName:      debt.toUserName,
+                originalAmount:  debt.originalAmount,
+                remainingAmount: debt.remainingAmount,
+                symbol:          symbol,
+                isDark:          isDark,
               ),
               const SizedBox(height: 28),
 
@@ -143,17 +131,17 @@ class _LogPaymentViewState extends State<LogPaymentView> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                        color: accentGold.withOpacity(isDark ? 0.12 : 0.08),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.25),
+                          color: accentGold.withOpacity(isDark ? 0.32 : 0.25),
                           width: 1.2,
                         ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.bolt_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+                          Icon(Icons.bolt_rounded, size: 18, color: accentGold),
                           const SizedBox(width: 6),
                           Text(
                             '1-Tap Settle Full: ',
@@ -168,7 +156,7 @@ class _LogPaymentViewState extends State<LogPaymentView> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
-                              color: Theme.of(context).colorScheme.primary,
+                              color: accentGold,
                             ),
                           ),
                         ],
@@ -177,12 +165,24 @@ class _LogPaymentViewState extends State<LogPaymentView> {
                   ),
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
 
               AppButton(
                 label:     'Submit Payment',
                 icon:      Icons.send_rounded,
                 isLoading: _submitting,
+                gradient:  isDark
+                    ? const LinearGradient(
+                        colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : const LinearGradient(
+                        colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                textColor: isDark ? const Color(0xFF14120E) : Colors.white,
                 onPressed: _submit,
               ),
               const SizedBox(height: 12),
@@ -199,21 +199,179 @@ class _LogPaymentViewState extends State<LogPaymentView> {
   }
 }
 
-class _InfoChip extends StatelessWidget {
-  final String label;
-  final String value;
-  const _InfoChip({required this.label, required this.value});
+class _DebtSummaryCard extends StatelessWidget {
+  final String toUserName;
+  final double originalAmount;
+  final double remainingAmount;
+  final String symbol;
+  final bool isDark;
+
+  const _DebtSummaryCard({
+    required this.toUserName,
+    required this.originalAmount,
+    required this.remainingAmount,
+    required this.symbol,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(color: Colors.white.withOpacity(0.18), borderRadius: BorderRadius.circular(10)),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF1F1D19) : Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: isDark
+              ? const Color(0xFFD4A017).withOpacity(0.26)
+              : const Color(0xFFE2DBCB),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black.withOpacity(0.40) : Colors.black.withOpacity(0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'PAYING TO',
+                style: TextStyle(
+                  color: isDark ? const Color(0xFFB0A880) : const Color(0xFF7A7468),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFFD4A017).withOpacity(0.14)
+                      : const Color(0xFF9E6E00).withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.shield_outlined,
+                      size: 13,
+                      color: isDark ? const Color(0xFFE5B83B) : const Color(0xFF9E6E00),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Debt Settlement',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? const Color(0xFFE5B83B) : const Color(0xFF9E6E00),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            toUserName,
+            style: TextStyle(
+              color: isDark ? const Color(0xFFF5F0DC) : const Color(0xFF1C1917),
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _InfoChip(
+                  label: 'Original Debt',
+                  value: '$symbol${originalAmount.toStringAsFixed(2)}',
+                  isHighlight: false,
+                  isDark: isDark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _InfoChip(
+                  label: 'Remaining Debt',
+                  value: '$symbol${remainingAmount.toStringAsFixed(2)}',
+                  isHighlight: true,
+                  isDark: isDark,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool isHighlight;
+  final bool isDark;
+
+  const _InfoChip({
+    required this.label,
+    required this.value,
+    this.isHighlight = false,
+    this.isDark = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = isDark
+        ? (isHighlight ? const Color(0xFF2C281F) : const Color(0xFF24221C))
+        : (isHighlight ? const Color(0xFFF7F3E8) : const Color(0xFFF5F2EB));
+
+    final borderColor = isDark
+        ? (isHighlight ? const Color(0xFFD4A017).withOpacity(0.32) : Colors.white.withOpacity(0.08))
+        : (isHighlight ? const Color(0xFFC59B27).withOpacity(0.38) : const Color(0xFFE2DBCB));
+
+    final valueColor = isHighlight
+        ? (isDark ? const Color(0xFFFFD700) : const Color(0xFF9E6E00))
+        : (isDark ? const Color(0xFFDCD6C2) : const Color(0xFF1C1917));
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor, width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: isDark ? const Color(0xFF9E9675) : const Color(0xFF7A7468),
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor,
+              fontWeight: FontWeight.w800,
+              fontSize: 15,
+            ),
+          ),
         ],
       ),
     );

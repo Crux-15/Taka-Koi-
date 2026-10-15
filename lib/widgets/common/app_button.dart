@@ -10,6 +10,8 @@ class AppButton extends StatelessWidget {
   final bool     outlined;
   final IconData? icon;
   final Color?   color;
+  final Gradient? gradient;
+  final Color?   textColor;
   final double?  width;
   final double   height;
 
@@ -21,6 +23,8 @@ class AppButton extends StatelessWidget {
     this.outlined  = false,
     this.icon,
     this.color,
+    this.gradient,
+    this.textColor,
     this.width,
     this.height = 56,
   });
@@ -50,19 +54,32 @@ class AppButton extends StatelessWidget {
       );
     }
 
+    final effectiveGradient = gradient ??
+        (onPressed != null
+            ? (color != null
+                ? LinearGradient(colors: [color!, color!])
+                : AppColors.primaryGradient)
+            : const LinearGradient(colors: [Color(0xFFBBBBBB), Color(0xFFCCCCCC)]));
+
+    final effectiveTextColor = textColor ?? Colors.white;
+
     return SizedBox(
       width:  width,
       height: height,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          gradient: onPressed != null
-              ? (color != null
-                  ? LinearGradient(colors: [color!, color!])
-                  : AppColors.primaryGradient)
-              : const LinearGradient(colors: [Color(0xFFBBBBBB), Color(0xFFCCCCCC)]),
+          gradient: effectiveGradient,
           borderRadius: BorderRadius.circular(14),
           boxShadow: onPressed != null
-              ? [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 6))]
+              ? [
+                  BoxShadow(
+                    color: gradient != null
+                        ? Colors.black.withOpacity(0.25)
+                        : AppColors.primary.withOpacity(0.35),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  )
+                ]
               : [],
         ),
         child: ElevatedButton.icon(
@@ -74,14 +91,14 @@ class AppButton extends StatelessWidget {
           ),
           onPressed: isLoading || onPressed == null ? null : _handleTap,
           icon: icon != null && !isLoading
-              ? Icon(icon, size: 20, color: Colors.white)
+              ? Icon(icon, size: 20, color: effectiveTextColor)
               : const SizedBox.shrink(),
           label: isLoading
-              ? const SizedBox(
+              ? SizedBox(
                   width: 22, height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: effectiveTextColor),
                 )
-              : Text(label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+              : Text(label, style: TextStyle(color: effectiveTextColor, fontWeight: FontWeight.w700, fontSize: 16)),
         ),
       ),
     );
