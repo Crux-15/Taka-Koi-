@@ -79,20 +79,31 @@ class _LoginViewState extends State<LoginView> {
     final auth    = context.watch<AuthController>();
     final scheme  = Theme.of(context).colorScheme;
     final size    = MediaQuery.sizeOf(context);
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Hero Header ───────────────────────────────────────────────
+            // ── Hero Header (Smart Posh Midnight Obsidian & Gold) ─────────
             Stack(
               children: [
                 Container(
                   height: size.height * 0.34,
-                  decoration: const BoxDecoration(
-                    gradient: AppColors.heroGradient,
-                    borderRadius: BorderRadius.only(
+                  decoration: BoxDecoration(
+                    gradient: isDark
+                        ? const LinearGradient(
+                            colors: [Color(0xFF26221A), Color(0xFF161411)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          )
+                        : const LinearGradient(
+                            colors: [Color(0xFF1C1917), Color(0xFF2D2722)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    borderRadius: const BorderRadius.only(
                       bottomLeft:  Radius.circular(40),
                       bottomRight: Radius.circular(40),
                     ),
@@ -110,18 +121,38 @@ class _LoginViewState extends State<LoginView> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: isDark
+                              ? const Color(0xFFD4A017).withOpacity(0.14)
+                              : Colors.white.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(color: Colors.white30),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFFD4A017).withOpacity(0.35) : Colors.white30,
+                            width: 1.2,
+                          ),
                         ),
-                        child: const Icon(Icons.travel_explore_rounded, size: 44, color: Colors.white),
+                        child: Icon(
+                          Icons.travel_explore_rounded,
+                          size: 44,
+                          color: isDark ? const Color(0xFFFFD700) : Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 16),
-                      const Text('Welcome Back!',
-                          style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700)),
+                      Text(
+                        'Welcome Back!',
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFFF5F0DC) : Colors.white,
+                          fontSize: 26,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 6),
-                      Text('Sign in to your account',
-                          style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 14)),
+                      Text(
+                        'Sign in to your account',
+                        style: TextStyle(
+                          color: isDark ? const Color(0xFFB0A880) : Colors.white.withOpacity(0.75),
+                          fontSize: 14,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -154,19 +185,29 @@ class _LoginViewState extends State<LoginView> {
                     ]),
                     const SizedBox(height: 24),
 
-                    // Email
-                    AppTextField(
-                      label:          'Email',
-                      hint:           'you@example.com',
-                      controller:     _emailCtrl,
-                      prefixIcon:     Icons.email_outlined,
-                      keyboardType:   TextInputType.emailAddress,
+                    // Email with Authentic Gmail Logo
+                    TextFormField(
+                      controller:      _emailCtrl,
+                      keyboardType:    TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
                       validator: (v) {
                         if (v == null || v.isEmpty) return 'Email is required.';
                         if (!v.contains('@')) return 'Enter a valid email.';
                         return null;
                       },
+                      decoration: InputDecoration(
+                        labelText: 'Email',
+                        hintText:  'you@example.com',
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Image.asset(
+                            'assets/icons/gmail.png',
+                            width: 20,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
 
@@ -192,16 +233,31 @@ class _LoginViewState extends State<LoginView> {
                       alignment: Alignment.centerRight,
                       child: TextButton(
                         onPressed: () => _showForgotPasswordDialog(),
+                        style: TextButton.styleFrom(
+                          foregroundColor: isDark ? const Color(0xFFE5B83B) : AppColors.poshGold,
+                        ),
                         child: const Text('Forgot Password?'),
                       ),
                     ),
                     const SizedBox(height: 8),
 
-                    // Login button
+                    // Login button (Smart Posh Burnished Gold / Midnight Obsidian)
                     AppButton(
                       label:     'Sign In',
                       icon:      Icons.login_rounded,
                       isLoading: auth.isLoading,
+                      gradient: isDark
+                          ? const LinearGradient(
+                              colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : const LinearGradient(
+                              colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                      textColor: isDark ? const Color(0xFF14120E) : Colors.white,
                       onPressed: _loginWithEmail,
                     ),
                     const SizedBox(height: 24),
@@ -214,7 +270,10 @@ class _LoginViewState extends State<LoginView> {
                             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14)),
                         TextButton(
                           onPressed: () => context.push(AppRoutes.register),
-                          child: const Text('Register'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: isDark ? const Color(0xFFE5B83B) : AppColors.poshGold,
+                          ),
+                          child: const Text('Register', style: TextStyle(fontWeight: FontWeight.w700)),
                         ),
                       ],
                     ),
@@ -231,18 +290,34 @@ class _LoginViewState extends State<LoginView> {
 
   void _showForgotPasswordDialog() {
     final emailCtrl = TextEditingController();
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Reset Password'),
-        content: AppTextField(
-          label:        'Email',
+        content: TextFormField(
           controller:   emailCtrl,
           keyboardType: TextInputType.emailAddress,
-          prefixIcon:   Icons.email_outlined,
+          decoration: InputDecoration(
+            labelText: 'Email',
+            hintText:  'you@example.com',
+            prefixIcon: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Image.asset(
+                'assets/icons/gmail.png',
+                width: 20,
+                height: 20,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: TextStyle(color: scheme.onSurfaceVariant)),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
@@ -254,7 +329,10 @@ class _LoginViewState extends State<LoginView> {
                 ));
               }
             },
-            child: const Text('Send'),
+            style: TextButton.styleFrom(
+              foregroundColor: isDark ? const Color(0xFFE5B83B) : AppColors.poshGold,
+            ),
+            child: const Text('Send', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
@@ -273,6 +351,7 @@ class _GoogleSignInButton extends StatelessWidget {
     return OutlinedButton(
       onPressed: isLoading ? null : onPressed,
       style: OutlinedButton.styleFrom(
+        foregroundColor: scheme.onSurface,
         side:        BorderSide(color: scheme.outline, width: 1.2),
         padding:     const EdgeInsets.symmetric(vertical: 14),
         shape:       RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

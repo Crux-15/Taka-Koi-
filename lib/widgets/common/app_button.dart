@@ -54,14 +54,29 @@ class AppButton extends StatelessWidget {
       );
     }
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final effectiveGradient = gradient ??
         (onPressed != null
             ? (color != null
                 ? LinearGradient(colors: [color!, color!])
-                : AppColors.primaryGradient)
+                : (isDark
+                    ? const LinearGradient(
+                        colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : const LinearGradient(
+                        colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )))
             : const LinearGradient(colors: [Color(0xFFBBBBBB), Color(0xFFCCCCCC)]));
 
-    final effectiveTextColor = textColor ?? Colors.white;
+    final effectiveTextColor = textColor ??
+        (onPressed != null && color == null && gradient == null
+            ? (isDark ? const Color(0xFF14120E) : Colors.white)
+            : Colors.white);
 
     return SizedBox(
       width:  width,
@@ -73,9 +88,9 @@ class AppButton extends StatelessWidget {
           boxShadow: onPressed != null
               ? [
                   BoxShadow(
-                    color: gradient != null
-                        ? Colors.black.withOpacity(0.25)
-                        : AppColors.primary.withOpacity(0.35),
+                    color: isDark
+                        ? const Color(0xFFC5951A).withOpacity(0.22)
+                        : Colors.black.withOpacity(0.18),
                     blurRadius: 16,
                     offset: const Offset(0, 6),
                   )

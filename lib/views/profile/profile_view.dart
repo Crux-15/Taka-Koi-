@@ -948,86 +948,38 @@ class BrandLogoWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     switch (app) {
       case 'whatsapp':
-        return Container(
+        return SizedBox(
           width: size,
           height: size,
-          decoration: const BoxDecoration(
-            color: Color(0xFF25D366),
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(color: Color(0x3325D366), blurRadius: 10, offset: Offset(0, 4)),
-            ],
-          ),
-          child: Center(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CustomPaint(
-                  size: Size(size * 0.58, size * 0.58),
-                  painter: _WhatsAppBubblePainter(),
-                ),
-                Icon(
-                  Icons.call_rounded,
-                  size: size * 0.32,
-                  color: const Color(0xFF25D366),
-                ),
-              ],
-            ),
+          child: Image.asset(
+            'assets/icons/whatsapp.png',
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
           ),
         );
 
       case 'messenger':
-        return Container(
+        return SizedBox(
           width: size,
           height: size,
-          decoration: const BoxDecoration(
-            shape: BoxShape.circle,
-            gradient: LinearGradient(
-              colors: [Color(0xFF00B2FE), Color(0xFF006AFF)],
-              begin: Alignment.topRight,
-              end: Alignment.bottomLeft,
-            ),
-            boxShadow: [
-              BoxShadow(color: Color(0x33006AFF), blurRadius: 10, offset: Offset(0, 4)),
-            ],
-          ),
-          child: Center(
-            child: CustomPaint(
-              size: Size(size * 0.58, size * 0.58),
-              painter: _MessengerPainter(),
-            ),
+          child: Image.asset(
+            'assets/icons/messenger.png',
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
           ),
         );
 
       case 'instagram':
-        return Container(
+        return SizedBox(
           width: size,
           height: size,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(size * 0.28),
-            gradient: const RadialGradient(
-              center: Alignment(-0.8, 1.0),
-              radius: 1.4,
-              colors: [
-                Color(0xFFFFDC80),
-                Color(0xFFF77737),
-                Color(0xFFF56040),
-                Color(0xFFFD1D1D),
-                Color(0xFFE1306C),
-                Color(0xFFC13584),
-                Color(0xFF833AB4),
-              ],
-              stops: [0.0, 0.2, 0.35, 0.5, 0.65, 0.8, 1.0],
-            ),
-            boxShadow: const [
-              BoxShadow(color: Color(0x33FD1D1D), blurRadius: 10, offset: Offset(0, 4)),
-            ],
-          ),
-          child: Center(
-            child: CustomPaint(
-              size: Size(size * 0.56, size * 0.56),
-              painter: _InstagramPainter(),
-            ),
+          child: Image.asset(
+            'assets/icons/instagram.png',
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
           ),
         );
 
@@ -1046,121 +998,21 @@ class BrandLogoWidget extends StatelessWidget {
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
               ),
             ],
           ),
           child: Center(
             child: Icon(
               Icons.apps_rounded,
-              size: size * 0.44,
+              size: size * 0.46,
               color: isDark ? const Color(0xFFFFD700) : const Color(0xFF1C1917),
             ),
           ),
         );
     }
   }
-}
-
-class _WhatsAppBubblePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    final paint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    final path = Path();
-    final rect = Rect.fromCenter(center: Offset(w * 0.5, h * 0.48), width: w * 0.92, height: h * 0.88);
-    path.addOval(rect);
-    path.moveTo(w * 0.22, h * 0.76);
-    path.lineTo(w * 0.06, h * 0.96);
-    path.lineTo(w * 0.38, h * 0.88);
-    path.close();
-
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _MessengerPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    // White speech bubble
-    final bubblePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    final bubblePath = Path();
-    final rect = Rect.fromCenter(center: Offset(w * 0.5, h * 0.48), width: w * 0.94, height: h * 0.90);
-    bubblePath.addOval(rect);
-    bubblePath.moveTo(w * 0.22, h * 0.78);
-    bubblePath.lineTo(w * 0.06, h * 0.98);
-    bubblePath.lineTo(w * 0.38, h * 0.88);
-    bubblePath.close();
-
-    canvas.drawPath(bubblePath, bubblePaint);
-
-    // Lightning bolt in Messenger blue
-    final boltPaint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFF00B2FE), Color(0xFF006AFF)],
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-      ).createShader(Rect.fromLTWH(0, 0, w, h))
-      ..style = PaintingStyle.fill;
-
-    final boltPath = Path();
-    boltPath.moveTo(w * 0.30, h * 0.54);
-    boltPath.lineTo(w * 0.48, h * 0.34);
-    boltPath.lineTo(w * 0.43, h * 0.48);
-    boltPath.lineTo(w * 0.70, h * 0.42);
-    boltPath.lineTo(w * 0.52, h * 0.62);
-    boltPath.lineTo(w * 0.57, h * 0.48);
-    boltPath.close();
-
-    canvas.drawPath(boltPath, boltPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _InstagramPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-
-    final strokePaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4;
-
-    final fillPaint = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-
-    // Rounded rectangle camera body
-    final cameraRect = Rect.fromCenter(center: Offset(w * 0.5, h * 0.5), width: w * 0.78, height: h * 0.78);
-    canvas.drawRRect(RRect.fromRectAndRadius(cameraRect, const Radius.circular(8)), strokePaint);
-
-    // Center lens circle
-    canvas.drawCircle(Offset(w * 0.5, h * 0.5), w * 0.20, strokePaint);
-
-    // Flash dot in top-right
-    canvas.drawCircle(Offset(w * 0.70, h * 0.30), 2.2, fillPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Helper Card ───────────────────────────────────────────────────────────────

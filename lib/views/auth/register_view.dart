@@ -145,11 +145,8 @@ class _RegisterViewState extends State<RegisterView> {
                       },
                     ),
                     const SizedBox(height: 16),
-                    AppTextField(
-                      label:           'Email Address',
-                      hint:            'you@example.com',
+                    TextFormField(
                       controller:      _emailCtrl,
-                      prefixIcon:      Icons.email_outlined,
                       keyboardType:    TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
                       onFieldSubmitted: (_) => _sendOtp(),
@@ -158,6 +155,19 @@ class _RegisterViewState extends State<RegisterView> {
                         if (!v.contains('@') || !v.contains('.')) return 'Enter a valid email.';
                         return null;
                       },
+                      decoration: InputDecoration(
+                        labelText: 'Email Address',
+                        hintText:  'you@example.com',
+                        prefixIcon: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          child: Image.asset(
+                            'assets/icons/gmail.png',
+                            width: 20,
+                            height: 20,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 12),
                     // Info card

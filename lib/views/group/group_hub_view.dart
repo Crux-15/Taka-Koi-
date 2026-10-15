@@ -75,6 +75,7 @@ class _GroupHubViewState extends State<GroupHubView> {
     final auth    = context.watch<AuthController>();
     final group   = context.watch<GroupController>();
     final scheme  = Theme.of(context).colorScheme;
+    final isDark  = Theme.of(context).brightness == Brightness.dark;
     final user    = auth.user;
 
     return Scaffold(
@@ -96,7 +97,19 @@ class _GroupHubViewState extends State<GroupHubView> {
               ],
               flexibleSpace: FlexibleSpaceBar(
                 background: Container(
-                  decoration: const BoxDecoration(gradient: AppColors.heroGradient),
+                  decoration: BoxDecoration(
+                    gradient: isDark
+                        ? const LinearGradient(
+                            colors: [Color(0xFF26221A), Color(0xFF161411)],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          )
+                        : const LinearGradient(
+                            colors: [Color(0xFF1C1917), Color(0xFF2D2722)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                  ),
                   padding: const EdgeInsets.fromLTRB(24, 60, 24, 20),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -120,7 +133,7 @@ class _GroupHubViewState extends State<GroupHubView> {
                   ),
                 ),
               ),
-              backgroundColor: AppColors.primary,
+              backgroundColor: isDark ? const Color(0xFF161411) : const Color(0xFF1C1917),
             ),
 
             // ── Action Cards ──────────────────────────────────────────────
@@ -128,14 +141,27 @@ class _GroupHubViewState extends State<GroupHubView> {
               padding: const EdgeInsets.all(20),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
-                  // Create Group Card
+                  // Create Group Card (Smart Posh Burnished Gold / Midnight Obsidian)
                   _ActionCard(
-                    gradient:   AppColors.primaryGradient,
-                    icon:       Icons.group_add_rounded,
-                    title:      'Start a New Tour',
-                    subtitle:   'Create a group and invite your travel mates',
-                    onTap:      () => context.push(AppRoutes.createGroup),
-                    textColor:  Colors.white,
+                    gradient: isDark
+                        ? const LinearGradient(
+                            colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : const LinearGradient(
+                            colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                    icon:          Icons.group_add_rounded,
+                    title:         'Start a New Tour',
+                    subtitle:      'Create a group and invite your travel mates',
+                    onTap:         () => context.push(AppRoutes.createGroup),
+                    textColor:     isDark ? const Color(0xFF14120E) : Colors.white,
+                    iconColor:     isDark ? const Color(0xFF14120E) : Colors.white,
+                    subtitleColor: isDark ? const Color(0xBF14120E) : Colors.white70,
+                    shadowColor:   isDark ? const Color(0xFFC5951A).withOpacity(0.24) : Colors.black.withOpacity(0.18),
                   ),
                   const SizedBox(height: 16),
 
@@ -147,6 +173,7 @@ class _GroupHubViewState extends State<GroupHubView> {
                     subtitle:   'Enter the group code shared by your admin',
                     onTap:      () => context.push(AppRoutes.joinGroup),
                     textColor:  scheme.onSurface,
+                    iconColor:  isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
                     outlined:   true,
                   ),
                   const SizedBox(height: 32),
@@ -181,6 +208,9 @@ class _ActionCard extends StatelessWidget {
   final String    subtitle;
   final VoidCallback onTap;
   final Color     textColor;
+  final Color?    iconColor;
+  final Color?    subtitleColor;
+  final Color?    shadowColor;
   final bool      outlined;
 
   const _ActionCard({
@@ -189,6 +219,9 @@ class _ActionCard extends StatelessWidget {
     required this.subtitle,
     required this.onTap,
     required this.textColor,
+    this.iconColor,
+    this.subtitleColor,
+    this.shadowColor,
     this.gradient,
     this.outlined = false,
   });
@@ -196,6 +229,9 @@ class _ActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final effectiveIconColor = iconColor ?? (gradient != null ? Colors.white : AppColors.primary);
+    final effectiveSubtitleColor = subtitleColor ?? (gradient != null ? Colors.white70 : scheme.onSurfaceVariant);
+
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -208,7 +244,7 @@ class _ActionCard extends StatelessWidget {
             borderRadius:  BorderRadius.circular(20),
             border:        outlined ? Border.all(color: scheme.outline, width: 1.5) : null,
             boxShadow: gradient != null
-                ? [BoxShadow(color: AppColors.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))]
+                ? [BoxShadow(color: shadowColor ?? AppColors.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))]
                 : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           padding: const EdgeInsets.all(20),
@@ -217,10 +253,10 @@ class _ActionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color:  gradient != null ? Colors.white.withOpacity(0.2) : AppColors.primary.withOpacity(0.1),
+                  color:  gradient != null ? effectiveIconColor.withOpacity(0.18) : AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(icon, size: 28, color: gradient != null ? Colors.white : AppColors.primary),
+                child: Icon(icon, size: 28, color: effectiveIconColor),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -229,11 +265,11 @@ class _ActionCard extends StatelessWidget {
                   children: [
                     Text(title,    style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.w700)),
                     const SizedBox(height: 4),
-                    Text(subtitle, style: TextStyle(color: gradient != null ? Colors.white70 : scheme.onSurfaceVariant, fontSize: 13)),
+                    Text(subtitle, style: TextStyle(color: effectiveSubtitleColor, fontSize: 13)),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios_rounded, size: 16, color: gradient != null ? Colors.white70 : scheme.onSurfaceVariant),
+              Icon(Icons.arrow_forward_ios_rounded, size: 16, color: effectiveSubtitleColor),
             ],
           ),
         ),

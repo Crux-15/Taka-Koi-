@@ -59,11 +59,11 @@ class AppColors {
     end: Alignment.bottomRight,
   );
 
-  /// Dark warm gradient: used on dark hero banners / login backgrounds
+  /// Midnight Obsidian gradient: used on dark hero banners / login backgrounds (eye-friendly, no glare)
   static const LinearGradient heroGradient = LinearGradient(
-    colors: [Color(0xFF1A1600), Color(0xFF332C00)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
+    colors: [Color(0xFF242018), Color(0xFF141310)],
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
   );
 
   /// Green gradient: success & payment states
