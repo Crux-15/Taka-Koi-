@@ -156,12 +156,35 @@ class _OwedToMeTab extends StatelessWidget {
           Text('Active Debts', style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: 8),
           ...debts.map((d) => Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: ListTile(
-              title:    Text(d.fromUserName, style: const TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: Text('From expense • $symbol${d.originalAmount.toStringAsFixed(2)} original'),
-              trailing: Text('$symbol${d.remainingAmount.toStringAsFixed(2)}',
-                  style: const TextStyle(color: AppColors.owedToMe, fontWeight: FontWeight.w700, fontSize: 16)),
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _DirectionalDebtFlow(
+                    senderName:   d.fromUserName,
+                    receiverName: 'You',
+                    amount:       d.remainingAmount,
+                    symbol:       symbol,
+                    isIOwe:       false,
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Original: $symbol${d.originalAmount.toStringAsFixed(2)}',
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      const Text(
+                        'Awaiting settlement',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.owedToMe),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           )),
         ],
@@ -177,7 +200,14 @@ class _DebtPersonCard extends StatelessWidget {
   final String          symbol;
   final bool            isIOwe;
   final VoidCallback?   onPayTap;
-  const _DebtPersonCard({required this.personName, required this.debts, required this.netAmount, required this.symbol, required this.isIOwe, this.onPayTap});
+  const _DebtPersonCard({
+    required this.personName,
+    required this.debts,
+    required this.netAmount,
+    required this.symbol,
+    required this.isIOwe,
+    this.onPayTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -188,31 +218,26 @@ class _DebtPersonCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Expanded(child: Text(personName, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16))),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text('Net payable', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-                    Text('$symbol${netAmount.abs().toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize:   20,
-                          fontWeight: FontWeight.w800,
-                          color:      netAmount > 0 ? AppColors.iOwe : AppColors.owedToMe,
-                        )),
-                  ],
-                ),
-              ],
+            // Visual Directional Flow Connector
+            _DirectionalDebtFlow(
+              senderName:   isIOwe ? 'You' : personName,
+              receiverName: isIOwe ? personName : 'You',
+              amount:       netAmount,
+              symbol:       symbol,
+              isIOwe:       isIOwe,
             ),
-            const Divider(height: 16),
+            const SizedBox(height: 12),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+
+            // Itemized remaining breakdown
             ...debts.map((d) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Remaining', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-                  Text('$symbol${d.remainingAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                  Text('Debt item remaining', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+                  Text('$symbol${d.remainingAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
                 ],
               ),
             )),
@@ -227,6 +252,136 @@ class _DebtPersonCard extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Directional Flow Connector showing sender avatar, flow arrow + amount, and receiver avatar
+class _DirectionalDebtFlow extends StatelessWidget {
+  final String senderName;
+  final String receiverName;
+  final double amount;
+  final String symbol;
+  final bool isIOwe;
+
+  const _DirectionalDebtFlow({
+    required this.senderName,
+    required this.receiverName,
+    required this.amount,
+    required this.symbol,
+    required this.isIOwe,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final flowColor = isIOwe ? AppColors.iOwe : AppColors.owedToMe;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: flowColor.withValues(alpha: isDark ? 0.12 : 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: flowColor.withValues(alpha: isDark ? 0.3 : 0.2),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Sender
+          Expanded(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: isIOwe ? scheme.primary.withValues(alpha: 0.2) : scheme.surfaceContainerHighest,
+                  child: Text(
+                    senderName.isNotEmpty ? senderName[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: isIOwe ? scheme.primary : scheme.onSurface,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    senderName,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Flow Connector Arrow with Amount
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: flowColor,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: flowColor.withValues(alpha: 0.3),
+                  blurRadius: 4,
+                  offset: const Offset(0, 1.5),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.white),
+                const SizedBox(width: 4),
+                Text(
+                  '$symbol${amount.abs().toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Receiver
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: Text(
+                    receiverName,
+                    textAlign: TextAlign.end,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: !isIOwe ? scheme.primary.withValues(alpha: 0.2) : scheme.surfaceContainerHighest,
+                  child: Text(
+                    receiverName.isNotEmpty ? receiverName[0].toUpperCase() : '?',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: !isIOwe ? scheme.primary : scheme.onSurface,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

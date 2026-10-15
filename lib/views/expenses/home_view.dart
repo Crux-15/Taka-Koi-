@@ -352,18 +352,8 @@ class _MemberTotalCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              // Rank badge
-              Container(
-                width: 28, height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: rank == 1 ? const Color(0xFFFFC107) : scheme.surfaceContainerHighest,
-                  shape: BoxShape.circle,
-                ),
-                child: Text('$rank',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700,
-                        color: rank == 1 ? Colors.white : scheme.onSurfaceVariant)),
-              ),
+              // Top-3 Podium Rank badge
+              _PodiumRankBadge(rank: rank),
               const SizedBox(width: 12),
               AvatarWidget(imageUrl: member.avatarUrl, name: member.name, size: 40),
               const SizedBox(width: 12),
@@ -598,6 +588,139 @@ class _StatBox extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Top-3 Spender Podium Badges (Gold, Silver, Bronze metallic finishes)
+class _PodiumRankBadge extends StatelessWidget {
+  final int rank;
+  const _PodiumRankBadge({required this.rank});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    if (rank == 1) {
+      // 🥇 Gold Podium
+      return Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFFD54F), Color(0xFFC78A00)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFC78A00).withValues(alpha: 0.4),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: const Color(0xFFFFF176), width: 1.2),
+        ),
+        child: const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.emoji_events_rounded, size: 13, color: Colors.white),
+            SizedBox(width: 1),
+            Text(
+              '1',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w900,
+                color: Colors.white,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (rank == 2) {
+      // 🥈 Silver Podium
+      return Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF1F5F9), Color(0xFF94A3B8)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF94A3B8).withValues(alpha: 0.3),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: Colors.white, width: 1.2),
+        ),
+        child: const Text(
+          '2',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1E293B),
+          ),
+        ),
+      );
+    } else if (rank == 3) {
+      // 🥉 Bronze Podium
+      return Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: const LinearGradient(
+            colors: [Color(0xFFF6C8A4), Color(0xFFA0522D)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFA0522D).withValues(alpha: 0.3),
+              blurRadius: 5,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(color: const Color(0xFFFFD8BE), width: 1.2),
+        ),
+        child: const Text(
+          '3',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+      );
+    } else {
+      // Standard rank 4+
+      return Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          shape: BoxShape.circle,
+        ),
+        child: Text(
+          '$rank',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: scheme.onSurfaceVariant,
+          ),
+        ),
+      );
+    }
   }
 }
 

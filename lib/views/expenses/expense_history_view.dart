@@ -30,6 +30,15 @@ class ExpenseHistoryView extends StatelessWidget {
     final pending  = expCtrl.myExpenses.where((e) => e.isPending).toList();
     final approved = expCtrl.myExpenses.where((e) => e.isApproved).toList();
 
+    // Group approved expenses chronologically by calendar day
+    final Map<DateTime, List<ExpenseModel>> groupedApproved = {};
+    for (final e in approved) {
+      final dayKey = DateTime(e.createdAt.year, e.createdAt.month, e.createdAt.day);
+      groupedApproved.putIfAbsent(dayKey, () => []).add(e);
+    }
+    // Sort days descending (most recent day first)
+    final sortedDays = groupedApproved.keys.toList()..sort((a, b) => b.compareTo(a));
+
     return Scaffold(
       appBar: AppBar(title: const Text('My Expenses')),
       body: expCtrl.myExpenses.isEmpty
@@ -66,28 +75,43 @@ class ExpenseHistoryView extends StatelessWidget {
                   const SizedBox(height: 8),
                 ],
 
-                // ── Approved section ─────────────────────────────────────
+                // ── Approved section (Day-by-Day Grouped) ────────────────
                 if (approved.isNotEmpty) ...[
                   _SectionHeader(
                     title: 'Approved',
                     count: approved.length,
                     color: AppColors.success,
                   ),
-                  const SizedBox(height: 8),
-                  ...approved.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _ExpenseCard(
-                      expense:         e,
-                      symbol:          group?.currencySymbol ?? '৳',
-                      expCtrl:         expCtrl,
-                      groupId:         group?.groupId ?? '',
-                      groupName:       group?.name ?? '',
-                      adminId:         group?.adminId ?? '',
-                      currentUid:      uid,
-                      currentUserName: userName,
-                      isAdmin:         isAdmin,
-                    ),
-                  )),
+                  const SizedBox(height: 10),
+                  ...sortedDays.map((day) {
+                    final dayExpenses = groupedApproved[day]!;
+                    final dayTotal = dayExpenses.fold<double>(0.0, (s, e) => s + e.amount);
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _DayGroupHeader(
+                          day:    day,
+                          count:  dayExpenses.length,
+                          total:  dayTotal,
+                          symbol: group?.currencySymbol ?? '৳',
+                        ),
+                        ...dayExpenses.map((e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _ExpenseCard(
+                            expense:         e,
+                            symbol:          group?.currencySymbol ?? '৳',
+                            expCtrl:         expCtrl,
+                            groupId:         group?.groupId ?? '',
+                            groupName:       group?.name ?? '',
+                            adminId:         group?.adminId ?? '',
+                            currentUid:      uid,
+                            currentUserName: userName,
+                            isAdmin:         isAdmin,
+                          ),
+                        )),
+                      ],
+                    );
+                  }),
                 ],
               ],
             ),
@@ -108,6 +132,100 @@ class _SectionHeader extends StatelessWidget {
       const SizedBox(width: 8),
       Text('$title ($count)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
     ]);
+  }
+}
+
+/// Day-by-Day sticky-style date header with expense count & daily subtotal
+class _DayGroupHeader extends StatelessWidget {
+  final DateTime day;
+  final int count;
+  final double total;
+  final String symbol;
+
+  const _DayGroupHeader({
+    required this.day,
+    required this.count,
+    required this.total,
+    required this.symbol,
+  });
+
+  String _formatDayTitle(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    if (date == today) {
+      return 'Today • ${DateFormat('MMM d').format(date)}';
+    } else if (date == yesterday) {
+      return 'Yesterday • ${DateFormat('MMM d').format(date)}';
+    } else {
+      return DateFormat('EEE, MMM d, y').format(date);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scheme = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceVariantDark : const Color(0xFFF3EFE6),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? AppColors.outlineDark : const Color(0xFFE2DBCB),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.calendar_today_rounded,
+                  size: 13,
+                  color: isDark ? AppColors.primaryLight : AppColors.poshGold,
+                ),
+                const SizedBox(width: 7),
+                Text(
+                  _formatDayTitle(day),
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? AppColors.onSurfaceDark : AppColors.poshObsidian,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                Text(
+                  '$count ${count == 1 ? "item" : "items"} • ',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: scheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  '$symbol${total.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: isDark ? AppColors.primaryLight : AppColors.poshGold,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
