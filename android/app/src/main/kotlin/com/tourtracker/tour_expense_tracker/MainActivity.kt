@@ -38,6 +38,50 @@ class MainActivity : FlutterActivity() {
                     }
                     result.success(false)
                 }
+            } else if (call.method == "shareText") {
+                val text = call.argument<String>("text") ?: ""
+                val title = call.argument<String>("title") ?: "Share via"
+                try {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    val chooser = Intent.createChooser(intent, title).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(chooser)
+                    result.success(true)
+                } catch (e: Exception) {
+                    result.success(false)
+                }
+            } else if (call.method == "shareToPackage") {
+                val packageName = call.argument<String>("package") ?: ""
+                val text = call.argument<String>("text") ?: ""
+                try {
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, text)
+                        `package` = packageName
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    startActivity(intent)
+                    result.success(true)
+                } catch (e: Exception) {
+                    // Fallback to system share sheet
+                    try {
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, text)
+                        }
+                        val chooser = Intent.createChooser(intent, "Share via").apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(chooser)
+                        result.success(true)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                }
             } else {
                 result.notImplemented()
             }

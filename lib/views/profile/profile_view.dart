@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/group_controller.dart';
 import '../../controllers/theme_controller.dart';
@@ -421,15 +422,41 @@ class _GroupCodeTile extends StatelessWidget {
           children: [
             Expanded(
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
                   color:        AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
+                  border:       Border.all(color: AppColors.primary.withOpacity(0.2)),
                 ),
-                child: Text(
-                  group.groupCode as String,
-                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 6, color: AppColors.primary),
-                  textAlign: TextAlign.center,
+                child: Row(
+                  children: [
+                    const SizedBox(width: 32), // balances the share button on the right
+                    Expanded(
+                      child: Text(
+                        group.groupCode as String,
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 6, color: AppColors.primary),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Share invite to WhatsApp, Messenger, etc.',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: () => _showInviteSheet(context, group),
+                          child: Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.share_rounded, size: 18, color: AppColors.primary),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -485,6 +512,397 @@ class _GroupCodeTile extends StatelessWidget {
           ),
         ]),
       ],
+    );
+  }
+
+  void _showInviteSheet(BuildContext context, dynamic group) {
+    final scheme = Theme.of(context).colorScheme;
+    final code = group.groupCode as String;
+    final tourName = group.name as String;
+    final inviteText = '$code\n\n'
+        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!\n'
+        'Download App: https://github.com/Crux-15/Taka-Koi-/releases/tag/v1.0.0';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 18,
+                offset: const Offset(0, -4),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Drag handle
+                Center(
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: scheme.onSurfaceVariant.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+
+                // Title Header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.14),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.send_rounded, color: AppColors.primary, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Invite to $tourName',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: scheme.onSurface,
+                            ),
+                          ),
+                          Text(
+                            'Share the group code via messaging apps',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Code Display Card with Quick Copy
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'GROUP JOIN CODE',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.2,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              code,
+                              style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 4,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        icon: const Icon(Icons.copy_rounded, size: 16),
+                        label: const Text('Copy Code', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: code));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('✅ Join code copied!'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Share Targets: WhatsApp, Messenger, Instagram, More Apps
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _ShareTargetButton(
+                      label: 'WhatsApp',
+                      color: const Color(0xFF25D366),
+                      icon: Icons.chat_rounded,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _launchShare(tourName: tourName, code: code, target: 'whatsapp');
+                      },
+                    ),
+                    _ShareTargetButton(
+                      label: 'Messenger',
+                      color: const Color(0xFF0084FF),
+                      icon: Icons.message_rounded,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _launchShare(tourName: tourName, code: code, target: 'messenger');
+                      },
+                    ),
+                    _ShareTargetButton(
+                      label: 'Instagram',
+                      color: const Color(0xFFE1306C),
+                      icon: Icons.camera_alt_rounded,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _launchShare(tourName: tourName, code: code, target: 'instagram');
+                      },
+                    ),
+                    _ShareTargetButton(
+                      label: 'More Apps',
+                      color: scheme.onSurface.withOpacity(0.8),
+                      icon: Icons.more_horiz_rounded,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _launchShare(tourName: tourName, code: code, target: null);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+
+                // Formatted Message Preview Card
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceVariant.withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: scheme.outline.withOpacity(0.15)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'MESSAGE PREVIEW',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                              color: scheme.onSurfaceVariant,
+                            ),
+                          ),
+                          InkWell(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: inviteText));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('✅ Full invite message copied!'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                            child: Row(
+                              children: [
+                                Icon(Icons.copy_rounded, size: 12, color: scheme.primary),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Copy Message',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: scheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.14),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          code,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 2,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!\nDownload App: https://github.com/Crux-15/Taka-Koi-/releases/tag/v1.0.0',
+                        style: TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: scheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _launchShare({
+    required String tourName,
+    required String code,
+    String? target,
+  }) async {
+    final inviteText = '$code\n\n'
+        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!\n'
+        'Download App: https://github.com/Crux-15/Taka-Koi-/releases/tag/v1.0.0';
+
+    const channel = MethodChannel('com.tourtracker.tour_expense_tracker/app_launcher');
+
+    if (target == 'whatsapp') {
+      try {
+        final ok = await channel.invokeMethod<bool>('shareToPackage', {
+          'package': 'com.whatsapp',
+          'text': inviteText,
+        });
+        if (ok == true) return;
+      } catch (_) {}
+
+      final uri = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(inviteText)}');
+      try {
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+
+      final webUri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(inviteText)}');
+      try {
+        if (await canLaunchUrl(webUri)) {
+          await launchUrl(webUri, mode: LaunchMode.externalApplication);
+          return;
+        }
+      } catch (_) {}
+    } else if (target == 'messenger') {
+      try {
+        final ok = await channel.invokeMethod<bool>('shareToPackage', {
+          'package': 'com.facebook.orca',
+          'text': inviteText,
+        });
+        if (ok == true) return;
+      } catch (_) {}
+    } else if (target == 'instagram') {
+      try {
+        final ok = await channel.invokeMethod<bool>('shareToPackage', {
+          'package': 'com.instagram.android',
+          'text': inviteText,
+        });
+        if (ok == true) return;
+      } catch (_) {}
+    }
+
+    // System share sheet (Default / "More Apps")
+    try {
+      final ok = await channel.invokeMethod<bool>('shareText', {
+        'text': inviteText,
+        'title': 'Invite Members to $tourName',
+      });
+      if (ok == true) return;
+    } catch (_) {}
+
+    // Fallback: copy to clipboard
+    await Clipboard.setData(ClipboardData(text: inviteText));
+  }
+}
+
+class _ShareTargetButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ShareTargetButton({
+    required this.label,
+    required this.color,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.12),
+                shape: BoxShape.circle,
+                border: Border.all(color: color.withOpacity(0.3), width: 1.5),
+              ),
+              child: Center(
+                child: Icon(icon, color: color, size: 24),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
