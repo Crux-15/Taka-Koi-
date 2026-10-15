@@ -751,19 +751,36 @@ class _BkashSection extends StatelessWidget {
                           onPressed: () async {
                             HapticFeedback.lightImpact();
                             Clipboard.setData(ClipboardData(text: number));
-                            final appUri = Uri.parse('bkash://');
-                            final webUri = Uri.parse('https://play.google.com/store/apps/details?id=com.bKash.customerapp');
+
+                            const channel = MethodChannel('com.tourtracker.tour_expense_tracker/app_launcher');
                             try {
-                              final ok = await launchUrl(appUri, mode: LaunchMode.externalApplication);
-                              if (!ok) await launchUrl(webUri, mode: LaunchMode.externalApplication);
-                            } catch (_) {
-                              try {
-                                await launchUrl(webUri, mode: LaunchMode.externalApplication);
-                              } catch (_) {
+                              final launched = await channel.invokeMethod<bool>('launchApp', {
+                                'package': 'com.bKash.customerapp',
+                              });
+                              if (homeCtx.mounted) {
                                 ScaffoldMessenger.of(homeCtx).showSnackBar(
-                                  const SnackBar(content: Text('bKash number copied to clipboard!')),
+                                  SnackBar(
+                                    content: Row(
+                                      children: [
+                                        const Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            launched == true
+                                                ? 'bKash number copied! Opening bKash…'
+                                                : 'bKash number copied! Opening Play Store…',
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    behavior: SnackBarBehavior.floating,
+                                    duration: const Duration(seconds: 2),
+                                  ),
                                 );
                               }
+                            } catch (_) {
+                              final webUri = Uri.parse('https://play.google.com/store/apps/details?id=com.bKash.customerapp');
+                              await launchUrl(webUri, mode: LaunchMode.externalApplication);
                             }
                           },
                         ),
