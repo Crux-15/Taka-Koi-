@@ -94,31 +94,33 @@ class _HomeViewState extends State<HomeView> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         decoration: BoxDecoration(
-                          gradient: isDark
-                              ? const LinearGradient(
-                                  colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                )
-                              : AppColors.primaryGradient,
+                          color: isDark ? const Color(0xFF1E1C18) : Colors.white,
                           borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFFD4A017).withOpacity(0.32) : const Color(0xFFE2DBCB),
+                            width: 1.2,
+                          ),
                           boxShadow: [
                             BoxShadow(
-                              color: isDark ? Colors.black.withOpacity(0.3) : AppColors.primary.withOpacity(0.35),
+                              color: isDark ? Colors.black.withOpacity(0.35) : Colors.black.withOpacity(0.04),
                               blurRadius: 8,
-                              offset:     const Offset(0, 3),
+                              offset:     const Offset(0, 2),
                             ),
                           ],
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.tune_rounded, color: Color(0xFF1A1A1A), size: 16),
-                            SizedBox(width: 6),
+                            Icon(
+                              Icons.tune_rounded,
+                              color: isDark ? const Color(0xFFFFD700) : const Color(0xFF9E6E00),
+                              size: 16,
+                            ),
+                            const SizedBox(width: 6),
                             Text(
                               'Manage Group',
                               style: TextStyle(
-                                color:      Color(0xFF1A1A1A),
+                                color:      isDark ? const Color(0xFFF5F0DC) : const Color(0xFF1C1917),
                                 fontSize:   12,
                                 fontWeight: FontWeight.w700,
                                 letterSpacing: 0.3,
@@ -151,29 +153,25 @@ class _HomeViewState extends State<HomeView> {
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               )
-                            : AppColors.primaryGradient,
+                            : const LinearGradient(
+                                colors: [Colors.white, Color(0xFFFAF8F2)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
                         borderRadius: BorderRadius.circular(24),
-                        border: isDark
-                            ? Border.all(
-                                color: const Color(0xFFD4A017).withOpacity(0.28),
-                                width: 1.2,
-                              )
-                            : null,
-                        boxShadow: isDark
-                            ? [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.45),
-                                  blurRadius: 22,
-                                  offset: const Offset(0, 8),
-                                )
-                              ]
-                            : [
-                                BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.4),
-                                  blurRadius: 24,
-                                  offset: const Offset(0, 10),
-                                )
-                              ],
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFFD4A017).withOpacity(0.28)
+                              : const Color(0xFFE2DBCB),
+                          width: 1.2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: isDark ? Colors.black.withOpacity(0.45) : Colors.black.withOpacity(0.06),
+                            blurRadius: 20,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,7 +187,7 @@ class _HomeViewState extends State<HomeView> {
                                     Text(
                                       'My Total Expenses',
                                       style: TextStyle(
-                                        color: isDark ? const Color(0xFFB0A880) : const Color(0x996D5700),
+                                        color: isDark ? const Color(0xFFB0A880) : const Color(0xFF7A7468),
                                         fontSize: 13,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -197,7 +195,7 @@ class _HomeViewState extends State<HomeView> {
                                     Text(
                                       user.name,
                                       style: TextStyle(
-                                        color: isDark ? const Color(0xFFF5F0DC) : const Color(0xFF1A1A1A),
+                                        color: isDark ? const Color(0xFFF5F0DC) : const Color(0xFF1C1917),
                                         fontWeight: FontWeight.w800,
                                         fontSize: 16,
                                       ),
@@ -207,7 +205,7 @@ class _HomeViewState extends State<HomeView> {
                               ),
                               Icon(
                                 Icons.arrow_forward_ios_rounded,
-                                color: isDark ? const Color(0xFFD4A017) : const Color(0x881A1A1A),
+                                color: isDark ? const Color(0xFFD4A017) : const Color(0xFF9E6E00),
                                 size: 16,
                               ),
                             ],
@@ -216,7 +214,7 @@ class _HomeViewState extends State<HomeView> {
                           Text(
                             '${group.currencySymbol}${myTotal.toStringAsFixed(2)}',
                             style: TextStyle(
-                              color: isDark ? const Color(0xFFFFD700) : const Color(0xFF0D0D0D),
+                              color: isDark ? const Color(0xFFFFD700) : const Color(0xFF1C1917),
                               fontSize: 38,
                               fontWeight: FontWeight.w900,
                               letterSpacing: -0.5,
@@ -227,11 +225,14 @@ class _HomeViewState extends State<HomeView> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: isDark ? const Color(0xFF2C271E) : const Color(0x1F000000),
+                              color: isDark ? const Color(0xFF2C271E) : const Color(0xFFF3EFE6),
                               borderRadius: BorderRadius.circular(10),
-                              border: isDark
-                                  ? Border.all(color: const Color(0xFFD4A017).withOpacity(0.24), width: 1)
-                                  : null,
+                              border: Border.all(
+                                color: isDark
+                                    ? const Color(0xFFD4A017).withOpacity(0.24)
+                                    : const Color(0xFFE2DBCB),
+                                width: 1,
+                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -239,7 +240,7 @@ class _HomeViewState extends State<HomeView> {
                                 Icon(
                                   Icons.pie_chart_outline_rounded,
                                   size: 13,
-                                  color: isDark ? const Color(0xFFE5B83B) : const Color(0xFF1A1A1A),
+                                  color: isDark ? const Color(0xFFE5B83B) : const Color(0xFF9E6E00),
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
@@ -247,7 +248,7 @@ class _HomeViewState extends State<HomeView> {
                                       ? '$myPercent% of group total (${group.currencySymbol}${groupTotal.toStringAsFixed(2)})'
                                       : 'No group expenses logged yet',
                                   style: TextStyle(
-                                    color: isDark ? const Color(0xFFDCD6C2) : const Color(0xFF1A1A1A),
+                                    color: isDark ? const Color(0xFFDCD6C2) : const Color(0xFF1C1917),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.1,
@@ -260,7 +261,7 @@ class _HomeViewState extends State<HomeView> {
                           Text(
                             'Tap to view detailed history',
                             style: TextStyle(
-                              color: isDark ? const Color(0xFF8E866C) : const Color(0x886D5700),
+                              color: isDark ? const Color(0xFF8E866C) : const Color(0xFF8A8275),
                               fontSize: 12,
                               fontWeight: FontWeight.w500,
                             ),
