@@ -158,13 +158,16 @@ class _RegisterViewState extends State<RegisterView> {
                       decoration: InputDecoration(
                         labelText: 'Email Address',
                         hintText:  'you@example.com',
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          child: Image.asset(
-                            'assets/icons/gmail.png',
-                            width: 20,
-                            height: 20,
-                            fit: BoxFit.contain,
+                        prefixIcon: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Center(
+                            child: Image.asset(
+                              'assets/icons/gmail.png',
+                              width: 22,
+                              height: 22,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                       ),

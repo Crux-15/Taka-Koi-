@@ -144,32 +144,60 @@ class _GroupCodeTab extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 24),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 36),
-            decoration: BoxDecoration(
-              gradient:     AppColors.primaryGradient,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  group.groupCode,
-                  style: const TextStyle(
-                    fontSize: 48, fontWeight: FontWeight.w900,
-                    color: Colors.white, letterSpacing: 12,
+          Builder(
+            builder: (ctx) {
+              final isDark = Theme.of(ctx).brightness == Brightness.dark;
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 36),
+                decoration: BoxDecoration(
+                  gradient: isDark
+                      ? const LinearGradient(
+                          colors: [Color(0xFF26221A), Color(0xFF161411)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        )
+                      : const LinearGradient(
+                          colors: [Colors.white, Color(0xFFFAF8F2)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(
+                    color: isDark ? const Color(0xFFD4A017).withOpacity(0.3) : const Color(0xFFE2DBCB),
+                    width: 1.2,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isDark ? Colors.black.withOpacity(0.35) : Colors.black.withOpacity(0.06),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  isExpired ? '⚠ Code expired — tap Refresh' : 'Share this code to invite members',
-                  style: TextStyle(
-                    color: isExpired ? Colors.orangeAccent : Colors.white70,
-                    fontSize: 13,
-                  ),
+                child: Column(
+                  children: [
+                    Text(
+                      group.groupCode,
+                      style: TextStyle(
+                        fontSize: 48, fontWeight: FontWeight.w900,
+                        color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
+                        letterSpacing: 12,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      isExpired ? '⚠ Code expired — tap Refresh' : 'Share this code to invite members',
+                      style: TextStyle(
+                        color: isExpired ? AppColors.error : (isDark ? const Color(0xFFB0A880) : scheme.onSurfaceVariant),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              );
+            },
           ),
           const SizedBox(height: 24),
           Row(

@@ -198,13 +198,16 @@ class _LoginViewState extends State<LoginView> {
                       decoration: InputDecoration(
                         labelText: 'Email',
                         hintText:  'you@example.com',
-                        prefixIcon: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                          child: Image.asset(
-                            'assets/icons/gmail.png',
-                            width: 20,
-                            height: 20,
-                            fit: BoxFit.contain,
+                        prefixIcon: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: Center(
+                            child: Image.asset(
+                              'assets/icons/gmail.png',
+                              width: 22,
+                              height: 22,
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                       ),
@@ -302,13 +305,16 @@ class _LoginViewState extends State<LoginView> {
           decoration: InputDecoration(
             labelText: 'Email',
             hintText:  'you@example.com',
-            prefixIcon: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Image.asset(
-                'assets/icons/gmail.png',
-                width: 20,
-                height: 20,
-                fit: BoxFit.contain,
+            prefixIcon: SizedBox(
+              width: 48,
+              height: 48,
+              child: Center(
+                child: Image.asset(
+                  'assets/icons/gmail.png',
+                  width: 22,
+                  height: 22,
+                  fit: BoxFit.contain,
+                ),
               ),
             ),
           ),
@@ -362,13 +368,11 @@ class _GoogleSignInButton extends StatelessWidget {
           : Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Google G logo using text (no SVG needed)
-                Container(
-                  width: 22, height: 22,
-                  decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
-                  child: const Center(
-                    child: Text('G', style: TextStyle(color: Color(0xFF4285F4), fontWeight: FontWeight.w900, fontSize: 14)),
-                  ),
+                Image.asset(
+                  'assets/icons/gmail.png',
+                  width: 24,
+                  height: 24,
+                  fit: BoxFit.contain,
                 ),
                 const SizedBox(width: 12),
                 const Text('Continue with Google', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
