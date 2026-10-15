@@ -520,100 +520,245 @@ class _GroupCodeTile extends StatelessWidget {
     final code = group.groupCode as String;
     final tourName = group.name as String;
     final inviteText = '$code\n\n'
-        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!\n'
-        'Download App: https://github.com/Crux-15/Taka-Koi-/releases/tag/v1.0.0';
+        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!';
 
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (ctx) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
         return Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.88,
+          ),
           decoration: BoxDecoration(
-            color: scheme.surface,
+            color: isDark ? const Color(0xFF141311) : scheme.surface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.18),
-                blurRadius: 18,
-                offset: const Offset(0, -4),
+                color: Colors.black.withOpacity(0.35),
+                blurRadius: 20,
+                offset: const Offset(0, -6),
               ),
             ],
           ),
           child: SafeArea(
             top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Drag handle
-                Center(
-                  child: Container(
-                    width: 42,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: scheme.onSurfaceVariant.withOpacity(0.35),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-
-                // Title Header
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(9),
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Drag handle
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.14),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.send_rounded, color: AppColors.primary, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Invite to $tourName',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: scheme.onSurface,
-                            ),
-                          ),
-                          Text(
-                            'Share the group code via messaging apps',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: scheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+                        color: scheme.onSurfaceVariant.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Code Display Card with Quick Copy
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: AppColors.primary.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.primary.withOpacity(0.25)),
                   ),
-                  child: Row(
+
+                  // Title Header
+                  Row(
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(9),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFFD4A017).withOpacity(0.18)
+                              : AppColors.primary.withOpacity(0.14),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.send_rounded,
+                          color: isDark ? const Color(0xFFFFD700) : AppColors.primary,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
+                              'Invite to $tourName',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              'Share the group code via messaging apps',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Code Display Card (Never wraps, prominent, elegant)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1C18) : AppColors.primary.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isDark
+                            ? const Color(0xFFD4A017).withOpacity(0.3)
+                            : AppColors.primary.withOpacity(0.3),
+                        width: 1.2,
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
                               'GROUP JOIN CODE',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 1.5,
+                                color: isDark ? const Color(0xFFB0A880) : scheme.onSurfaceVariant,
+                              ),
+                            ),
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: () {
+                                  HapticFeedback.lightImpact();
+                                  Clipboard.setData(ClipboardData(text: code));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('✅ Join code copied!'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                  decoration: BoxDecoration(
+                                    color: isDark
+                                        ? const Color(0xFFD4A017).withOpacity(0.18)
+                                        : AppColors.primary.withOpacity(0.18),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.copy_rounded,
+                                        size: 14,
+                                        color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Copy Code',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w700,
+                                          color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            code,
+                            maxLines: 1,
+                            style: TextStyle(
+                              fontSize: 32,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 8,
+                              color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Share Targets with Actual Brand Icons
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _ShareTargetButton(
+                        label: 'WhatsApp',
+                        app: 'whatsapp',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _launchShare(tourName: tourName, code: code, target: 'whatsapp');
+                        },
+                      ),
+                      _ShareTargetButton(
+                        label: 'Messenger',
+                        app: 'messenger',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _launchShare(tourName: tourName, code: code, target: 'messenger');
+                        },
+                      ),
+                      _ShareTargetButton(
+                        label: 'Instagram',
+                        app: 'instagram',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _launchShare(tourName: tourName, code: code, target: 'instagram');
+                        },
+                      ),
+                      _ShareTargetButton(
+                        label: 'More Apps',
+                        app: 'more',
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _launchShare(tourName: tourName, code: code, target: null);
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Formatted Message Preview Card (Clean, NO Github link)
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E1C18) : scheme.surfaceVariant.withOpacity(0.35),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isDark ? const Color(0xFFD4A017).withOpacity(0.2) : scheme.outline.withOpacity(0.15),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'MESSAGE PREVIEW',
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
@@ -621,167 +766,67 @@ class _GroupCodeTile extends StatelessWidget {
                                 color: scheme.onSurfaceVariant,
                               ),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              code,
-                              style: const TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 4,
-                                color: AppColors.primary,
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: inviteText));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('✅ Full invite message copied!'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              },
+                              child: Row(
+                                children: [
+                                  Icon(Icons.copy_rounded, size: 12, color: scheme.primary),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Copy Message',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: scheme.primary,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        ),
-                        icon: const Icon(Icons.copy_rounded, size: 16),
-                        label: const Text('Copy Code', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                        onPressed: () {
-                          Clipboard.setData(ClipboardData(text: code));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('✅ Join code copied!'),
-                              duration: Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Share Targets: WhatsApp, Messenger, Instagram, More Apps
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _ShareTargetButton(
-                      label: 'WhatsApp',
-                      color: const Color(0xFF25D366),
-                      icon: Icons.chat_rounded,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _launchShare(tourName: tourName, code: code, target: 'whatsapp');
-                      },
-                    ),
-                    _ShareTargetButton(
-                      label: 'Messenger',
-                      color: const Color(0xFF0084FF),
-                      icon: Icons.message_rounded,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _launchShare(tourName: tourName, code: code, target: 'messenger');
-                      },
-                    ),
-                    _ShareTargetButton(
-                      label: 'Instagram',
-                      color: const Color(0xFFE1306C),
-                      icon: Icons.camera_alt_rounded,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _launchShare(tourName: tourName, code: code, target: 'instagram');
-                      },
-                    ),
-                    _ShareTargetButton(
-                      label: 'More Apps',
-                      color: scheme.onSurface.withOpacity(0.8),
-                      icon: Icons.more_horiz_rounded,
-                      onTap: () {
-                        Navigator.pop(ctx);
-                        _launchShare(tourName: tourName, code: code, target: null);
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Formatted Message Preview Card
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceVariant.withOpacity(0.35),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: scheme.outline.withOpacity(0.15)),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'MESSAGE PREVIEW',
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFFD4A017).withOpacity(0.18)
+                                : AppColors.primary.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            code,
                             style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 1.2,
-                              color: scheme.onSurfaceVariant,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 2,
+                              color: isDark ? const Color(0xFFFFD700) : AppColors.primary,
                             ),
                           ),
-                          InkWell(
-                            onTap: () {
-                              Clipboard.setData(ClipboardData(text: inviteText));
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('✅ Full invite message copied!'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                            },
-                            child: Row(
-                              children: [
-                                Icon(Icons.copy_rounded, size: 12, color: scheme.primary),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Copy Message',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                    color: scheme.primary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.14),
-                          borderRadius: BorderRadius.circular(6),
                         ),
-                        child: Text(
-                          code,
-                          style: const TextStyle(
+                        const SizedBox(height: 8),
+                        Text(
+                          'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!',
+                          style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2,
-                            color: AppColors.primary,
+                            height: 1.4,
+                            fontWeight: FontWeight.w500,
+                            color: scheme.onSurface,
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!\nDownload App: https://github.com/Crux-15/Taka-Koi-/releases/tag/v1.0.0',
-                        style: TextStyle(
-                          fontSize: 12,
-                          height: 1.4,
-                          color: scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -795,8 +840,7 @@ class _GroupCodeTile extends StatelessWidget {
     String? target,
   }) async {
     final inviteText = '$code\n\n'
-        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!\n'
-        'Download App: https://github.com/Crux-15/Taka-Koi-/releases/tag/v1.0.0';
+        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!';
 
     const channel = MethodChannel('com.tourtracker.tour_expense_tracker/app_launcher');
 
@@ -858,14 +902,12 @@ class _GroupCodeTile extends StatelessWidget {
 
 class _ShareTargetButton extends StatelessWidget {
   final String label;
-  final Color color;
-  final IconData icon;
+  final String app;
   final VoidCallback onTap;
 
   const _ShareTargetButton({
     required this.label,
-    required this.color,
-    required this.icon,
+    required this.app,
     required this.onTap,
   });
 
@@ -875,27 +917,16 @@ class _ShareTargetButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
-                shape: BoxShape.circle,
-                border: Border.all(color: color.withOpacity(0.3), width: 1.5),
-              ),
-              child: Center(
-                child: Icon(icon, color: color, size: 24),
-              ),
-            ),
-            const SizedBox(height: 6),
+            BrandLogoWidget(app: app, size: 52),
+            const SizedBox(height: 8),
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: 12,
                 fontWeight: FontWeight.w600,
                 color: Theme.of(context).colorScheme.onSurface,
               ),
@@ -905,6 +936,231 @@ class _ShareTargetButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class BrandLogoWidget extends StatelessWidget {
+  final String app;
+  final double size;
+
+  const BrandLogoWidget({super.key, required this.app, this.size = 52});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (app) {
+      case 'whatsapp':
+        return Container(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(
+            color: Color(0xFF25D366),
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(color: Color(0x3325D366), blurRadius: 10, offset: Offset(0, 4)),
+            ],
+          ),
+          child: Center(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: Size(size * 0.58, size * 0.58),
+                  painter: _WhatsAppBubblePainter(),
+                ),
+                Icon(
+                  Icons.call_rounded,
+                  size: size * 0.32,
+                  color: const Color(0xFF25D366),
+                ),
+              ],
+            ),
+          ),
+        );
+
+      case 'messenger':
+        return Container(
+          width: size,
+          height: size,
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              colors: [Color(0xFF00B2FE), Color(0xFF006AFF)],
+              begin: Alignment.topRight,
+              end: Alignment.bottomLeft,
+            ),
+            boxShadow: [
+              BoxShadow(color: Color(0x33006AFF), blurRadius: 10, offset: Offset(0, 4)),
+            ],
+          ),
+          child: Center(
+            child: CustomPaint(
+              size: Size(size * 0.58, size * 0.58),
+              painter: _MessengerPainter(),
+            ),
+          ),
+        );
+
+      case 'instagram':
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(size * 0.28),
+            gradient: const RadialGradient(
+              center: Alignment(-0.8, 1.0),
+              radius: 1.4,
+              colors: [
+                Color(0xFFFFDC80),
+                Color(0xFFF77737),
+                Color(0xFFF56040),
+                Color(0xFFFD1D1D),
+                Color(0xFFE1306C),
+                Color(0xFFC13584),
+                Color(0xFF833AB4),
+              ],
+              stops: [0.0, 0.2, 0.35, 0.5, 0.65, 0.8, 1.0],
+            ),
+            boxShadow: const [
+              BoxShadow(color: Color(0x33FD1D1D), blurRadius: 10, offset: Offset(0, 4)),
+            ],
+          ),
+          child: Center(
+            child: CustomPaint(
+              size: Size(size * 0.56, size * 0.56),
+              painter: _InstagramPainter(),
+            ),
+          ),
+        );
+
+      default:
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        return Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: isDark ? const Color(0xFF26231C) : const Color(0xFFEDE8DD),
+            border: Border.all(
+              color: isDark ? const Color(0xFFD4A017).withOpacity(0.35) : const Color(0xFFD0C8B8),
+              width: 1.2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Center(
+            child: Icon(
+              Icons.apps_rounded,
+              size: size * 0.44,
+              color: isDark ? const Color(0xFFFFD700) : const Color(0xFF1C1917),
+            ),
+          ),
+        );
+    }
+  }
+}
+
+class _WhatsAppBubblePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final path = Path();
+    final rect = Rect.fromCenter(center: Offset(w * 0.5, h * 0.48), width: w * 0.92, height: h * 0.88);
+    path.addOval(rect);
+    path.moveTo(w * 0.22, h * 0.76);
+    path.lineTo(w * 0.06, h * 0.96);
+    path.lineTo(w * 0.38, h * 0.88);
+    path.close();
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _MessengerPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // White speech bubble
+    final bubblePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    final bubblePath = Path();
+    final rect = Rect.fromCenter(center: Offset(w * 0.5, h * 0.48), width: w * 0.94, height: h * 0.90);
+    bubblePath.addOval(rect);
+    bubblePath.moveTo(w * 0.22, h * 0.78);
+    bubblePath.lineTo(w * 0.06, h * 0.98);
+    bubblePath.lineTo(w * 0.38, h * 0.88);
+    bubblePath.close();
+
+    canvas.drawPath(bubblePath, bubblePaint);
+
+    // Lightning bolt in Messenger blue
+    final boltPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [Color(0xFF00B2FE), Color(0xFF006AFF)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, w, h))
+      ..style = PaintingStyle.fill;
+
+    final boltPath = Path();
+    boltPath.moveTo(w * 0.30, h * 0.54);
+    boltPath.lineTo(w * 0.48, h * 0.34);
+    boltPath.lineTo(w * 0.43, h * 0.48);
+    boltPath.lineTo(w * 0.70, h * 0.42);
+    boltPath.lineTo(w * 0.52, h * 0.62);
+    boltPath.lineTo(w * 0.57, h * 0.48);
+    boltPath.close();
+
+    canvas.drawPath(boltPath, boltPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _InstagramPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final strokePaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4;
+
+    final fillPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    // Rounded rectangle camera body
+    final cameraRect = Rect.fromCenter(center: Offset(w * 0.5, h * 0.5), width: w * 0.78, height: h * 0.78);
+    canvas.drawRRect(RRect.fromRectAndRadius(cameraRect, const Radius.circular(8)), strokePaint);
+
+    // Center lens circle
+    canvas.drawCircle(Offset(w * 0.5, h * 0.5), w * 0.20, strokePaint);
+
+    // Flash dot in top-right
+    canvas.drawCircle(Offset(w * 0.70, h * 0.30), 2.2, fillPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // ── Helper Card ───────────────────────────────────────────────────────────────

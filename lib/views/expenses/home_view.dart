@@ -74,6 +74,8 @@ class _HomeViewState extends State<HomeView> {
       ..sort((a, b) => (memberTotals[b.userId] ?? 0.0)
           .compareTo(memberTotals[a.userId] ?? 0.0));
 
+    final isDark       = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async => _initStreams(),
@@ -92,11 +94,17 @@ class _HomeViewState extends State<HomeView> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                         decoration: BoxDecoration(
-                          gradient:     AppColors.primaryGradient,
+                          gradient: isDark
+                              ? const LinearGradient(
+                                  colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : AppColors.primaryGradient,
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color:      AppColors.primary.withOpacity(0.35),
+                              color: isDark ? Colors.black.withOpacity(0.3) : AppColors.primary.withOpacity(0.35),
                               blurRadius: 8,
                               offset:     const Offset(0, 3),
                             ),
@@ -137,9 +145,35 @@ class _HomeViewState extends State<HomeView> {
                     child: Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
-                        gradient:     AppColors.primaryGradient,
+                        gradient: isDark
+                            ? const LinearGradient(
+                                colors: [Color(0xFF26221A), Color(0xFF191714)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : AppColors.primaryGradient,
                         borderRadius: BorderRadius.circular(24),
-                        boxShadow:    [BoxShadow(color: AppColors.primary.withOpacity(0.4), blurRadius: 24, offset: const Offset(0, 10))],
+                        border: isDark
+                            ? Border.all(
+                                color: const Color(0xFFD4A017).withOpacity(0.28),
+                                width: 1.2,
+                              )
+                            : null,
+                        boxShadow: isDark
+                            ? [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.45),
+                                  blurRadius: 22,
+                                  offset: const Offset(0, 8),
+                                )
+                              ]
+                            : [
+                                BoxShadow(
+                                  color: AppColors.primary.withOpacity(0.4),
+                                  blurRadius: 24,
+                                  offset: const Offset(0, 10),
+                                )
+                              ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,44 +186,68 @@ class _HomeViewState extends State<HomeView> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text(
+                                    Text(
                                       'My Total Expenses',
-                                      style: TextStyle(color: Color(0x996D5700), fontSize: 13),  // dark amber-brown, subtle
+                                      style: TextStyle(
+                                        color: isDark ? const Color(0xFFB0A880) : const Color(0x996D5700),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                     Text(
                                       user.name,
-                                      style: const TextStyle(color: Color(0xFF1A1A1A), fontWeight: FontWeight.w700, fontSize: 15),
+                                      style: TextStyle(
+                                        color: isDark ? const Color(0xFFF5F0DC) : const Color(0xFF1A1A1A),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.arrow_forward_ios_rounded, color: Color(0x881A1A1A), size: 16),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                color: isDark ? const Color(0xFFD4A017) : const Color(0x881A1A1A),
+                                size: 16,
+                              ),
                             ],
                           ),
                           const SizedBox(height: 20),
                           Text(
                             '${group.currencySymbol}${myTotal.toStringAsFixed(2)}',
-                            style: const TextStyle(color: Color(0xFF0D0D0D), fontSize: 36, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                            style: TextStyle(
+                              color: isDark ? const Color(0xFFFFD700) : const Color(0xFF0D0D0D),
+                              fontSize: 38,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.5,
+                            ),
                           ),
                           const SizedBox(height: 8),
                           // Subtle ratio badge
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: const Color(0x1F000000), // refined translucent obsidian overlay
+                              color: isDark ? const Color(0xFF2C271E) : const Color(0x1F000000),
                               borderRadius: BorderRadius.circular(10),
+                              border: isDark
+                                  ? Border.all(color: const Color(0xFFD4A017).withOpacity(0.24), width: 1)
+                                  : null,
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(Icons.pie_chart_outline_rounded, size: 13, color: Color(0xFF1A1A1A)),
+                                Icon(
+                                  Icons.pie_chart_outline_rounded,
+                                  size: 13,
+                                  color: isDark ? const Color(0xFFE5B83B) : const Color(0xFF1A1A1A),
+                                ),
                                 const SizedBox(width: 6),
                                 Text(
                                   groupTotal > 0
                                       ? '$myPercent% of group total (${group.currencySymbol}${groupTotal.toStringAsFixed(2)})'
                                       : 'No group expenses logged yet',
-                                  style: const TextStyle(
-                                    color: Color(0xFF1A1A1A),
+                                  style: TextStyle(
+                                    color: isDark ? const Color(0xFFDCD6C2) : const Color(0xFF1A1A1A),
                                     fontSize: 12,
                                     fontWeight: FontWeight.w600,
                                     letterSpacing: 0.1,
@@ -199,9 +257,13 @@ class _HomeViewState extends State<HomeView> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          const Text(
+                          Text(
                             'Tap to view detailed history',
-                            style: TextStyle(color: Color(0x886D5700), fontSize: 12),  // muted dark amber
+                            style: TextStyle(
+                              color: isDark ? const Color(0xFF8E866C) : const Color(0x886D5700),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
@@ -306,18 +368,62 @@ class _HomeViewState extends State<HomeView> {
           ],
         ),
       ),
-      floatingActionButton: ElevatedButton.icon(
-        onPressed: () => context.push(AppRoutes.logExpense),
-        icon:  const Icon(Icons.add_rounded, size: 22),
-        label: const Text(
-          'Log Expense',
-          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          gradient: isDark
+              ? const LinearGradient(
+                  colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : const LinearGradient(
+                  colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+          borderRadius: BorderRadius.circular(26),
+          boxShadow: [
+            BoxShadow(
+              color: isDark ? Colors.black.withOpacity(0.5) : Colors.black.withOpacity(0.22),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
-        style: ElevatedButton.styleFrom(
-          padding:         const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          shape:           RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-          elevation:       6,
-          shadowColor:     Theme.of(context).colorScheme.primary.withOpacity(0.4),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(26),
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push(AppRoutes.logExpense);
+            },
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.add_rounded,
+                    size: 22,
+                    color: isDark ? const Color(0xFF14120E) : Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Log Expense',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.2,
+                      color: isDark ? const Color(0xFF14120E) : Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
