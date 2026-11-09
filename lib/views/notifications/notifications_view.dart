@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/expense_controller.dart';
@@ -10,7 +9,10 @@ import '../../models/notification_model.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_constants.dart';
 import '../../utils/app_router.dart';
+import '../../utils/display_helpers.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/ui/ui.dart';
+import 'bkash_request_sheet.dart';
 
 /// In-app notifications list with Unread / Read tabs.
 /// Unread tab is shown by default. Tapping a notification marks it read
@@ -29,24 +31,14 @@ class _NotificationsViewState extends State<NotificationsView>
   void dispose() { _tabs.dispose(); super.dispose(); }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
-  String _timeAgo(DateTime date) {
-    final diff = DateTime.now().difference(date);
-    if (diff.inMinutes < 1)  return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours   < 24) return '${diff.inHours}h ago';
-    if (diff.inDays    < 7)  return '${diff.inDays}d ago';
-    return DateFormat('MMM d, y').format(date);
-  }
-
   IconData _iconFor(String type) {
     switch (type) {
       case AppConstants.notifExpensePendingApproval:  return Icons.pending_actions_rounded;
       case AppConstants.notifExpenseApproved:         return Icons.check_circle_rounded;
       case AppConstants.notifExpenseRejected:         return Icons.cancel_rounded;
+      case AppConstants.notifPaymentPending:          return Icons.payments_rounded;
       case AppConstants.notifPaymentApproved:         return Icons.payments_rounded;
       case AppConstants.notifPaymentRejected:         return Icons.money_off_rounded;
-      case AppConstants.notifJoinApproved:            return Icons.group_add_rounded;
-      case AppConstants.notifJoinRejected:            return Icons.person_remove_rounded;
       case AppConstants.notifGroupAutoDeactivated:    return Icons.timer_off_rounded;
       case AppConstants.notifGroupEnded:              return Icons.flag_rounded;
       case AppConstants.notifLeaveRequest:            return Icons.exit_to_app_rounded;
@@ -62,23 +54,31 @@ class _NotificationsViewState extends State<NotificationsView>
   }
 
   Color _colorFor(String type) {
+    final p = context.palette;
     switch (type) {
-      case AppConstants.notifExpensePendingApproval:  return Colors.orange;
-      case AppConstants.notifExpenseApproved:         return AppColors.success;
-      case AppConstants.notifExpenseRejected:         return AppColors.error;
-      case AppConstants.notifPaymentApproved:         return AppColors.success;
-      case AppConstants.notifPaymentRejected:         return AppColors.error;
-      case AppConstants.notifGroupAutoDeactivated:    return AppColors.warning;
-      case AppConstants.notifGroupEnded:              return AppColors.warning;
-      case AppConstants.notifLeaveRequest:            return Colors.orange;
-      case AppConstants.notifLeaveApproved:           return AppColors.success;
-      case AppConstants.notifLeaveRejected:           return AppColors.error;
-      case AppConstants.notifDeleteExpenseRequest:    return AppColors.error;
-      case AppConstants.notifDeleteExpenseApproved:   return AppColors.success;
-      case AppConstants.notifDeleteExpenseRejected:   return AppColors.error;
-      case AppConstants.notifBkashRequested:          return AppColors.primary;
-      case AppConstants.notifBkashAccepted:           return AppColors.success;
-      default:                                        return AppColors.primary;
+      case AppConstants.notifExpensePendingApproval:
+      case AppConstants.notifPaymentPending:
+      case AppConstants.notifLeaveRequest:
+        return p.pending;
+      case AppConstants.notifExpenseApproved:
+      case AppConstants.notifPaymentApproved:
+      case AppConstants.notifLeaveApproved:
+      case AppConstants.notifDeleteExpenseApproved:
+      case AppConstants.notifBkashAccepted:
+        return p.positive;
+      case AppConstants.notifExpenseRejected:
+      case AppConstants.notifPaymentRejected:
+      case AppConstants.notifLeaveRejected:
+      case AppConstants.notifDeleteExpenseRequest:
+      case AppConstants.notifDeleteExpenseRejected:
+        return p.negative;
+      case AppConstants.notifGroupAutoDeactivated:
+      case AppConstants.notifGroupEnded:
+        return p.textMuted;
+      case AppConstants.notifBkashRequested:
+        return p.info;
+      default:
+        return p.accent;
     }
   }
 
@@ -86,6 +86,7 @@ class _NotificationsViewState extends State<NotificationsView>
     AppConstants.notifExpensePendingApproval,
     AppConstants.notifExpenseApproved,
     AppConstants.notifExpenseRejected,
+    AppConstants.notifPaymentPending,
     AppConstants.notifPaymentApproved,
     AppConstants.notifPaymentRejected,
     AppConstants.notifLeaveRequest,
@@ -103,6 +104,7 @@ class _NotificationsViewState extends State<NotificationsView>
       AppConstants.notifExpenseRejected,
     };
     final paymentTypes = {
+      AppConstants.notifPaymentPending,
       AppConstants.notifPaymentApproved,
       AppConstants.notifPaymentRejected,
     };
@@ -198,87 +200,16 @@ class _NotificationsViewState extends State<NotificationsView>
     );
   }
 
-  /// Shows Accept / Decline dialog when member B gets a bKash request.
-  void _showBkashRequestDialog(BuildContext ctx, NotificationModel notif, String groupId) {
-    final groupCtrl   = ctx.read<GroupController>();
-    final authCtrl    = ctx.read<AuthController>();
-    final requesterId = notif.referenceId;                               // who asked
-    final requesterName = notif.message.split(' is requesting').first.trim();
-    final targetId    = authCtrl.user?.uid    ?? '';                     // me (B)
-    final targetName  = authCtrl.user?.name   ?? '';
-    final groupName   = notif.groupName;
-
-    showDialog(
-      context: ctx,
-      barrierDismissible: true,
-      builder: (dialogCtx) {
-        bool _loading = false;
-        return StatefulBuilder(
-          builder: (sCtx, setSt) => AlertDialog(
-            title: const Row(children: [
-              Icon(Icons.phone_android_rounded, color: AppColors.primary, size: 22),
-              SizedBox(width: 10),
-              Text('bKash Request'),
-            ]),
-            content: Text(
-              '$requesterName is requesting your bKash number.\n\n'
-              'If you accept, they will be able to see your bKash number.',
-            ),
-            actions: [
-              // Decline
-              TextButton(
-                onPressed: _loading ? null : () async {
-                  setSt(() => _loading = true);
-                  await groupCtrl.declineBkashRequest(
-                    groupId:     groupId,
-                    requesterId: requesterId,
-                    targetId:    targetId,
-                  );
-                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
-                      content: Text('Request declined.'),
-                    ));
-                  }
-                },
-                child: const Text('Decline', style: TextStyle(color: AppColors.error)),
-              ),
-              // Accept
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-                onPressed: _loading ? null : () async {
-                  setSt(() => _loading = true);
-                  final ok = await groupCtrl.acceptBkashRequest(
-                    groupId:       groupId,
-                    requesterId:   requesterId,
-                    requesterName: requesterName,
-                    targetId:      targetId,
-                    targetName:    targetName,
-                    groupName:     groupName,
-                  );
-                  if (dialogCtx.mounted) Navigator.pop(dialogCtx);
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                      content: Text(ok
-                          ? 'bKash number shared with $requesterName ✅'
-                          : 'Failed. Try again.'),
-                      backgroundColor: ok ? AppColors.success : AppColors.error,
-                    ));
-                  }
-                },
-                child: _loading
-                    ? const SizedBox(width: 18, height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('Accept', style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
+  void _showBkashRequestDialog(BuildContext ctx, NotificationModel notif, String groupId) =>
+      showBkashRequestSheet(ctx, notif, groupId);
 
   /// Shows an inline approve/reject dialog for a leave request notification.
+  /// Closes [route] if it's still open. Removing that exact route (rather
+  /// than popping whatever is on top) can't close the wrong screen.
+  static void _closeRoute(NavigatorState nav, Route<dynamic>? route) {
+    if (route != null && route.isActive && nav.mounted) nav.removeRoute(route);
+  }
+
   void _showLeaveApprovalDialog(BuildContext ctx, NotificationModel notif) {
     final memberId   = notif.referenceId;
     final groupCtrl  = ctx.read<GroupController>();
@@ -291,13 +222,13 @@ class _NotificationsViewState extends State<NotificationsView>
       context: ctx,
       barrierDismissible: true,
       builder: (dialogCtx) {
-        bool _loading = false;
+        bool loading = false;
         return StatefulBuilder(
           builder: (sCtx, setSt) => AlertDialog(
-            title: Row(children: [
-              const Icon(Icons.exit_to_app_rounded, color: AppColors.error, size: 22),
-              const SizedBox(width: 10),
-              const Text('Leave Request'),
+            title: const Row(children: [
+              Icon(Icons.exit_to_app_rounded, color: AppColors.error, size: 22),
+              SizedBox(width: 10),
+              Text('Leave request'),
             ]),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -307,7 +238,7 @@ class _NotificationsViewState extends State<NotificationsView>
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color:        AppColors.primary.withOpacity(0.1),
+                      color:        AppColors.primary.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(notif.groupName,
@@ -331,7 +262,7 @@ class _NotificationsViewState extends State<NotificationsView>
                 ),
               ],
             ),
-            actions: _loading
+            actions: loading
                 ? [const Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator())]
                 : [
                     // Reject
@@ -341,21 +272,23 @@ class _NotificationsViewState extends State<NotificationsView>
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () async {
-                        setSt(() => _loading = true);
+                        // Grab the dialog's route first: a GoRouter rebuild
+                        // during the await can make dialogCtx unusable while
+                        // the dialog is still on screen (the old black-screen
+                        // freeze), so close that exact route afterwards.
+                        final nav   = Navigator.of(dialogCtx);
+                        final route = ModalRoute.of(dialogCtx);
+                        setSt(() => loading = true);
                         final ok = await groupCtrl.rejectLeave(
                           memberId:   memberId,
                           memberName: memberName,
                         );
-                        // Always close the dialog — don't gate on mounted because
-                        // a GoRouter notifyListeners() during the await can make
-                        // dialogCtx.mounted return false even though the dialog is still
-                        // visible, causing the black-screen freeze.
-                        try { Navigator.of(dialogCtx).pop(); } catch (_) {}
+                        _closeRoute(nav, route);
                         if (ctx.mounted) {
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                             content: Text(ok
                                 ? '$memberName\'s leave request rejected.'
-                                : 'Failed. Try again.'),
+                                : (groupCtrl.errorMessage ?? 'Failed. Try again.')),
                             backgroundColor: ok ? AppColors.warning : AppColors.error,
                           ));
                         }
@@ -369,18 +302,19 @@ class _NotificationsViewState extends State<NotificationsView>
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: () async {
-                        setSt(() => _loading = true);
+                        final nav   = Navigator.of(dialogCtx);
+                        final route = ModalRoute.of(dialogCtx);
+                        setSt(() => loading = true);
                         final ok = await groupCtrl.approveLeave(
                           memberId:   memberId,
                           memberName: memberName,
                         );
-                        // Always close — same reason as above
-                        try { Navigator.of(dialogCtx).pop(); } catch (_) {}
+                        _closeRoute(nav, route);
                         if (ctx.mounted) {
                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
                             content: Text(ok
-                                ? '$memberName has been removed from the group.'
-                                : 'Failed. Try again.'),
+                                ? '$memberName has left the tour.'
+                                : (groupCtrl.errorMessage ?? 'Failed. Try again.')),
                             backgroundColor: ok ? AppColors.success : AppColors.error,
                           ));
                         }
@@ -402,66 +336,87 @@ class _NotificationsViewState extends State<NotificationsView>
     final unread = notifCtrl.notifications.where((n) => !n.isRead).toList();
     final read   = notifCtrl.notifications.where((n) =>  n.isRead).toList();
 
+    final p = context.palette;
+    final t = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        actions: [
-          if (notifCtrl.hasUnread)
-            TextButton(
-              onPressed: () => notifCtrl.markAllAsRead(user?.uid ?? ''),
-              child: const Text('Mark all read'),
-            ),
-        ],
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: [
-            Tab(
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Text('Unread'),
-                if (unread.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                    decoration: BoxDecoration(
-                      color:        AppColors.error,
-                      borderRadius: BorderRadius.circular(10),
+      body: NestedScrollView(
+        headerSliverBuilder: (_, __) => [
+          SliverSafeArea(
+            bottom: false,
+            sliver: SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 12, 0),
+              sliver: SliverToBoxAdapter(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Activity', style: t.headlineMedium),
+                          const SizedBox(height: 4),
+                          Text(
+                            unread.isEmpty ? 'You\'re all caught up.' : '${unread.length} new ${unread.length == 1 ? 'update' : 'updates'}',
+                            style: t.bodyMedium?.copyWith(color: p.textMuted),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Text('${unread.length}',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ]),
+                    if (notifCtrl.hasUnread)
+                      TextButton.icon(
+                        onPressed: () => notifCtrl.markAllAsRead(user?.uid ?? ''),
+                        icon:  const Icon(Icons.done_all_rounded, size: 18),
+                        label: const Text('Mark all read'),
+                      ),
+                  ],
+                ),
+              ),
             ),
-            const Tab(text: 'Read'),
+          ),
+          SliverToBoxAdapter(
+            child: PillTabBar(
+              controller: _tabs,
+              margin: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+              tabs: [
+                Tab(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('New'),
+                    if (unread.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      StatusChip('${unread.length}', tone: ChipTone.negative, dense: true),
+                    ],
+                  ]),
+                ),
+                const Tab(text: 'Earlier'),
+              ],
+            ),
+          ),
+        ],
+        body: TabBarView(
+          controller: _tabs,
+          children: [
+            _NotifList(
+              notifications: unread,
+              emptyIcon:     Icons.mark_email_read_rounded,
+              emptyTitle:    'All caught up',
+              emptySubtitle: 'Approvals, payments and requests that need you show up here.',
+              onTap:         _handleTap,
+              tappableTypes: _tappableTypes,
+              iconFor:       _iconFor,
+              colorFor:      _colorFor,
+            ),
+            _NotifList(
+              notifications: read,
+              emptyIcon:     Icons.history_rounded,
+              emptyTitle:    'Nothing here yet',
+              emptySubtitle: 'Updates you\'ve already seen move here.',
+              onTap:         _handleTap,
+              tappableTypes: _tappableTypes,
+              iconFor:       _iconFor,
+              colorFor:      _colorFor,
+            ),
           ],
         ),
-      ),
-      body: TabBarView(
-        controller: _tabs,
-        children: [
-          _NotifList(
-            notifications: unread,
-            emptyIcon:     Icons.mark_email_read_outlined,
-            emptyTitle:    'All caught up!',
-            emptySubtitle: 'New notifications appear here.',
-            onTap:         _handleTap,
-            tappableTypes: _tappableTypes,
-            iconFor:       _iconFor,
-            colorFor:      _colorFor,
-            timeAgo:       _timeAgo,
-          ),
-          _NotifList(
-            notifications: read,
-            emptyIcon:     Icons.notifications_off_outlined,
-            emptyTitle:    'No Read Notifications',
-            emptySubtitle: 'Notifications you have seen will appear here.',
-            onTap:         _handleTap,
-            tappableTypes: _tappableTypes,
-            iconFor:       _iconFor,
-            colorFor:      _colorFor,
-            timeAgo:       _timeAgo,
-          ),
-        ],
       ),
     );
   }
@@ -477,7 +432,6 @@ class _NotifList extends StatelessWidget {
   final Set<String>  tappableTypes;
   final IconData     Function(String) iconFor;
   final Color        Function(String) colorFor;
-  final String       Function(DateTime) timeAgo;
 
   const _NotifList({
     required this.notifications,
@@ -488,106 +442,91 @@ class _NotifList extends StatelessWidget {
     required this.tappableTypes,
     required this.iconFor,
     required this.colorFor,
-    required this.timeAgo,
   });
 
   @override
   Widget build(BuildContext context) {
     final notifCtrl = context.read<NotificationController>();
-    final scheme    = Theme.of(context).colorScheme;
+    final p         = context.palette;
+    final t         = Theme.of(context).textTheme;
 
     if (notifications.isEmpty) {
-      return EmptyStateWidget(
-        icon:     Icons.notifications_off_outlined,
-        title:    emptyTitle,
-        subtitle: emptySubtitle,
-      );
+      return EmptyStateWidget(icon: emptyIcon, title: emptyTitle, subtitle: emptySubtitle);
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: notifications.length,
-      separatorBuilder: (_, __) => Divider(height: 1, indent: 72, color: scheme.outlineVariant),
+    // Group by day, newest first (the list already is).
+    final rows = <Object>[];
+    String? lastDay;
+    for (final n in notifications) {
+      final day = dayLabel(n.createdAt);
+      if (day != lastDay) {
+        rows.add(day);
+        lastDay = day;
+      }
+      rows.add(n);
+    }
+
+    return ListView.builder(
+      padding:   const EdgeInsets.fromLTRB(20, 8, 20, 32),
+      itemCount: rows.length,
       itemBuilder: (_, i) {
-        final notif    = notifications[i];
+        final row = rows[i];
+        if (row is String) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(4, i == 0 ? 8 : 20, 4, 10),
+            child: Text(row.toUpperCase(), style: AppType.overline(p.textMuted)),
+          );
+        }
+        final notif    = row as NotificationModel;
         final color    = colorFor(notif.type);
         final tappable = tappableTypes.contains(notif.type);
+        final message  = notif.message.replaceAll(RegExp(r'\s*Tap to [^.]*\.?$'), '').trim();
 
-        return InkWell(
-          onTap: () => onTap(context, notif, notifCtrl),
-          child: Container(
-            color: notif.isRead ? null : scheme.primaryContainer.withOpacity(0.35),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: AppCard(
+            onTap:       () => onTap(context, notif, notifCtrl),
+            padding:     const EdgeInsets.fromLTRB(14, 14, 12, 14),
+            color:       notif.isRead ? p.surface : Color.alphaBlend(p.accent.withValues(alpha: p.isDark ? 0.07 : 0.05), p.surface),
+            borderColor: notif.isRead ? null : p.accent.withValues(alpha: 0.25),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Icon circle
-                Container(
-                  width: 46, height: 46,
-                  decoration: BoxDecoration(
-                    color:  color.withOpacity(0.12),
-                    shape:  BoxShape.circle,
-                  ),
-                  child: Icon(iconFor(notif.type), color: color, size: 22),
-                ),
+                IconTile(iconFor(notif.type), color: color, size: 42, radius: 13),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Group name badge (if present)
-                      if (notif.groupName.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          margin: const EdgeInsets.only(bottom: 5),
-                          decoration: BoxDecoration(
-                            color:        AppColors.primary.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            notif.groupName,
-                            style: const TextStyle(
-                              fontSize:   11,
-                              fontWeight: FontWeight.w600,
-                              color:      AppColors.primary,
-                            ),
-                          ),
-                        ),
-                      ],
-                      // Message
                       Text(
-                        notif.message,
-                        style: TextStyle(
-                          fontSize:   14,
+                        message,
+                        style: t.bodyMedium?.copyWith(
                           fontWeight: notif.isRead ? FontWeight.w400 : FontWeight.w600,
                           height:     1.4,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      // Time + tap hint
-                      Row(children: [
-                        Text(timeAgo(notif.createdAt),
-                            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-                        if (tappable) ...[
-                          const SizedBox(width: 6),
-                          Text('· Tap to review',
-                              style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(timeAgo(notif.createdAt), style: t.bodySmall),
+                          if (notif.groupName.isNotEmpty) StatusChip(notif.groupName, dense: true),
+                          if (tappable) const StatusChip('Review', tone: ChipTone.accent, dense: true, icon: Icons.arrow_forward_rounded),
                         ],
-                      ]),
+                      ),
                     ],
                   ),
                 ),
-                // Unread dot
                 if (!notif.isRead)
                   Padding(
-                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    padding: const EdgeInsets.only(top: 4, left: 8),
                     child: Container(
-                      width: 8, height: 8,
-                      decoration: BoxDecoration(color: scheme.primary, shape: BoxShape.circle),
+                      width: 9, height: 9,
+                      decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
                     ),
                   ),
-                if (tappable)
-                  Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant, size: 20),
               ],
             ),
           ),

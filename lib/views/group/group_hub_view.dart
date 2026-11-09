@@ -8,9 +8,11 @@ import '../../models/group_model.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_router.dart';
 import '../../widgets/common/avatar_widget.dart';
-import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/install_hint.dart';
 import '../../widgets/common/theme_switch_widget.dart';
 import 'past_tour_detail_view.dart';
+import '../../widgets/ui/ui.dart';
+import '../../utils/display_helpers.dart';
 
 /// Screen shown when the user has no active group.
 class GroupHubView extends StatefulWidget {
@@ -62,12 +64,12 @@ class _GroupHubViewState extends State<GroupHubView> {
         ],
       ),
     );
-    if (confirm != true || !mounted) return;
+    if (confirm != true || !context.mounted) return;
+    final auth = context.read<AuthController>();
     // Sign out first — router refreshListenable handles navigation to /login
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('activeGroupId');
-    if (!mounted) return;
-    await context.read<AuthController>().signOut();
+    await auth.signOut();
   }
 
   @override
@@ -90,7 +92,7 @@ class _GroupHubViewState extends State<GroupHubView> {
                 const ThemeSwitchWidget(),
                 IconButton(
                   icon:    const Icon(Icons.logout_rounded, color: Colors.white),
-                  tooltip: 'Sign Out',
+                  tooltip: 'Sign out',
                   onPressed: () => _signOut(context),
                 ),
                 const SizedBox(width: 4),
@@ -100,12 +102,12 @@ class _GroupHubViewState extends State<GroupHubView> {
                   decoration: BoxDecoration(
                     gradient: isDark
                         ? const LinearGradient(
-                            colors: [Color(0xFF26221A), Color(0xFF161411)],
+                            colors: [AppColors.darkHeroStart, AppColors.darkHeroEnd],
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                           )
                         : const LinearGradient(
-                            colors: [Color(0xFF1C1917), Color(0xFF2D2722)],
+                            colors: [AppColors.poshObsidian, AppColors.obsidianWarm],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -125,7 +127,7 @@ class _GroupHubViewState extends State<GroupHubView> {
                                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                             const SizedBox(height: 2),
                             Text('Ready for your next adventure?',
-                                style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 13)),
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
                           ],
                         ),
                       ),
@@ -133,7 +135,7 @@ class _GroupHubViewState extends State<GroupHubView> {
                   ),
                 ),
               ),
-              backgroundColor: isDark ? const Color(0xFF161411) : const Color(0xFF1C1917),
+              backgroundColor: isDark ? AppColors.darkHeroEnd : AppColors.poshObsidian,
             ),
 
             // ── Action Cards ──────────────────────────────────────────────
@@ -141,27 +143,28 @@ class _GroupHubViewState extends State<GroupHubView> {
               padding: const EdgeInsets.all(20),
               sliver: SliverList(
                 delegate: SliverChildListDelegate([
+                  const InstallHint(),
                   // Create Group Card (Smart Posh Burnished Gold / Midnight Obsidian)
                   _ActionCard(
                     gradient: isDark
                         ? const LinearGradient(
-                            colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
+                            colors: [AppColors.goldBright, AppColors.goldDeep],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
                         : const LinearGradient(
-                            colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
+                            colors: [AppColors.poshObsidian, AppColors.obsidianLight],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
                     icon:          Icons.group_add_rounded,
-                    title:         'Start a New Tour',
-                    subtitle:      'Create a group and invite your travel mates',
+                    title:         'Start a new tour',
+                    subtitle:      'Start a tour and invite your friends',
                     onTap:         () => context.push(AppRoutes.createGroup),
-                    textColor:     isDark ? const Color(0xFF14120E) : Colors.white,
-                    iconColor:     isDark ? const Color(0xFF14120E) : Colors.white,
-                    subtitleColor: isDark ? const Color(0xBF14120E) : Colors.white70,
-                    shadowColor:   isDark ? const Color(0xFFC5951A).withOpacity(0.24) : Colors.black.withOpacity(0.18),
+                    textColor:     isDark ? AppColors.ink : Colors.white,
+                    iconColor:     isDark ? AppColors.ink : Colors.white,
+                    subtitleColor: isDark ? AppColors.inkMuted : Colors.white70,
+                    shadowColor:   isDark ? AppColors.goldDeep.withValues(alpha: 0.24) : Colors.black.withValues(alpha: 0.18),
                   ),
                   const SizedBox(height: 16),
 
@@ -169,27 +172,22 @@ class _GroupHubViewState extends State<GroupHubView> {
                   _ActionCard(
                     gradient:   null,
                     icon:       Icons.qr_code_rounded,
-                    title:      'Join an Existing Tour',
-                    subtitle:   'Enter the group code shared by your admin',
+                    title:      'Join a tour',
+                    subtitle:   'Got a 6-letter code from a friend? Join here',
                     onTap:      () => context.push(AppRoutes.joinGroup),
                     textColor:  scheme.onSurface,
-                    iconColor:  isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
+                    iconColor:  isDark ? AppColors.primary : AppColors.poshGold,
                     outlined:   true,
                   ),
                   const SizedBox(height: 32),
 
                   // Past Tours header
                   if (group.history.isNotEmpty) ...[
-                    Text('Past Tours', style: Theme.of(context).textTheme.titleMedium),
+                    Text('Past tours', style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 12),
                     ...group.history.map((g) => _HistoryGroupCard(group: g)),
                   ] else ...[
-                    const SizedBox(height: 16),
-                    EmptyState(
-                      icon:     Icons.history_rounded,
-                      title:    'No Past Tours',
-                      subtitle: 'Your completed tours will appear here.',
-                    ),
+                    const _HowItWorks(),
                   ],
                 ]),
               ),
@@ -244,8 +242,8 @@ class _ActionCard extends StatelessWidget {
             borderRadius:  BorderRadius.circular(20),
             border:        outlined ? Border.all(color: scheme.outline, width: 1.5) : null,
             boxShadow: gradient != null
-                ? [BoxShadow(color: shadowColor ?? AppColors.primary.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8))]
-                : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+                ? [BoxShadow(color: shadowColor ?? AppColors.primary.withValues(alpha: 0.3), blurRadius: 20, offset: const Offset(0, 8))]
+                : [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
           ),
           padding: const EdgeInsets.all(20),
           child: Row(
@@ -253,7 +251,7 @@ class _ActionCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color:  gradient != null ? effectiveIconColor.withOpacity(0.18) : AppColors.primary.withOpacity(0.1),
+                  color:  gradient != null ? effectiveIconColor.withValues(alpha: 0.18) : AppColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Icon(icon, size: 28, color: effectiveIconColor),
@@ -297,11 +295,19 @@ class _HistoryGroupCard extends StatelessWidget {
           TextButton(
             onPressed: () async {
               Navigator.of(dialogCtx).pop();
-              final uid = context.read<AuthController>().user?.uid ?? '';
-              await context.read<GroupController>().removeFromHistory(
+              final uid       = context.read<AuthController>().user?.uid ?? '';
+              final groups    = context.read<GroupController>();
+              final messenger = ScaffoldMessenger.of(context);
+              final ok = await groups.removeFromHistory(
                 groupId: group.groupId,
                 userId:  uid,
               );
+              if (!ok) {
+                messenger.showSnackBar(SnackBar(
+                  content:         Text(groups.errorMessage ?? 'Couldn\'t remove that tour.'),
+                  backgroundColor: AppColors.error,
+                ));
+              }
             },
             child: const Text('Remove', style: TextStyle(color: AppColors.error)),
           ),
@@ -324,14 +330,7 @@ class _HistoryGroupCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
           child: Row(
             children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.travel_explore_rounded, color: AppColors.primary),
-              ),
+              const IconTile(Icons.luggage_rounded, size: 44),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -341,22 +340,16 @@ class _HistoryGroupCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
                     const SizedBox(height: 2),
                     Text(
-                      '${group.members.length} members • ${group.currencySymbol} ${group.currency}',
+                      group.inactivatedAt != null
+                          ? '${group.members.length} people · ended ${timeAgo(group.inactivatedAt!)}'
+                          : '${group.members.length} people',
                       style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),
               ),
               // View badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color:        AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text('View',
-                    style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.w600)),
-              ),
+              const StatusChip('Open', tone: ChipTone.accent, icon: Icons.chevron_right_rounded),
               const SizedBox(width: 4),
               // Delete button
               IconButton(
@@ -370,6 +363,75 @@ class _HistoryGroupCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// First-run guide: the whole app in four steps, for people new to it.
+class _HowItWorks extends StatelessWidget {
+  const _HowItWorks();
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final t = Theme.of(context).textTheme;
+    const steps = [
+      (Icons.group_add_rounded, 'Start or join a tour', 'One person starts it and shares a 6-letter code. Friends join with the code.'),
+      (Icons.receipt_long_rounded, 'Add what you pay', 'Paid for dinner or tickets? Add it and choose who shares it.'),
+      (Icons.fact_check_rounded, 'Everyone okays their share', 'Each person approves only their own part, so there are no surprises.'),
+      (Icons.handshake_rounded, 'Settle up', 'See who owes whom, pay by bKash or cash, and the other person confirms.'),
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('How Taka Koi works', style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        const SizedBox(height: 12),
+        AppCard(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+          child: Column(
+            children: [
+              for (var i = 0; i < steps.length; i++) ...[
+                if (i > 0) Divider(height: 1, color: p.hairline),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconTile(steps[i].$1, size: 42, radius: 13),
+                          Positioned(
+                            top: -5, left: -5,
+                            child: Container(
+                              width: 18, height: 18,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(color: p.accent, shape: BoxShape.circle),
+                              child: Text('${i + 1}',
+                                  style: TextStyle(fontFamily: AppType.display, fontSize: 10.5, fontWeight: FontWeight.w700, color: p.onAccent)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(steps[i].$2, style: t.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                            const SizedBox(height: 2),
+                            Text(steps[i].$3, style: t.bodySmall),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

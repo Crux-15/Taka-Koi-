@@ -74,8 +74,8 @@ class _JoinGroupViewState extends State<JoinGroupView> {
             Center(
               child: Container(
                 width: 80, height: 80,
-                decoration: BoxDecoration(gradient: AppColors.mintGradient, borderRadius: BorderRadius.circular(24)),
-                child: const Icon(Icons.qr_code_rounded, size: 44, color: Colors.white),
+                decoration: BoxDecoration(gradient: AppColors.goldGradient, borderRadius: BorderRadius.circular(24)),
+                child: const Icon(Icons.qr_code_rounded, size: 44, color: AppColors.ink),
               ),
             ),
             const SizedBox(height: 20),

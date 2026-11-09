@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../utils/money.dart';
 
 /// Represents a single debt record: one person owes another.
 class DebtModel {
@@ -32,7 +33,14 @@ class DebtModel {
 
   bool get isActive   => status == 'active';
   bool get isSettled  => status == 'settled';
-  bool get isFullyPaid => remainingAmount <= 0;
+
+  /// Remaining amount in whole cents.
+  int get remainingCents => Money.toCents(remainingAmount);
+
+  /// True while there is at least one cent left to pay. Older debts can be
+  /// "active" with only a fraction of a cent left (from unrounded splits);
+  /// those count as paid off.
+  bool get isOpen => isActive && remainingCents > 0;
 
   factory DebtModel.fromDoc(DocumentSnapshot doc, {String? groupId}) {
     final data = doc.data() as Map<String, dynamic>;

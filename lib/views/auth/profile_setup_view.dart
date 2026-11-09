@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -22,7 +22,7 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
   final _formKey     = GlobalKey<FormState>();
   final _nameCtrl    = TextEditingController();
   final _bkashCtrl   = TextEditingController();
-  File?  _avatarFile;
+  Uint8List? _avatarFile;
   final  _picker     = ImagePicker();
 
   @override
@@ -35,7 +35,9 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
 
   Future<void> _pickAvatar() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75, maxWidth: 512);
-    if (picked != null) setState(() => _avatarFile = File(picked.path));
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (mounted) setState(() => _avatarFile = bytes);
   }
 
   Future<void> _submit() async {
@@ -100,10 +102,10 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                           decoration: BoxDecoration(
                             shape:      BoxShape.circle,
                             gradient:   AppColors.primaryGradient,
-                            boxShadow: [BoxShadow(color: AppColors.primary.withOpacity(0.35), blurRadius: 20, offset: const Offset(0, 8))],
+                            boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: 0.35), blurRadius: 20, offset: const Offset(0, 8))],
                           ),
                           child: _avatarFile != null
-                              ? ClipOval(child: Image.file(_avatarFile!, fit: BoxFit.cover, width: 100, height: 100))
+                              ? ClipOval(child: Image.memory(_avatarFile!, fit: BoxFit.cover, width: 100, height: 100))
                               : const Icon(Icons.person_rounded, size: 52, color: Colors.white),
                         ),
                       ),
@@ -127,7 +129,7 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                   child: TextButton.icon(
                     onPressed: _pickAvatar,
                     icon: const Icon(Icons.photo_library_rounded, size: 16),
-                    label: const Text('Choose Photo'),
+                    label: const Text('Choose a photo'),
                   ),
                 ),
                 const SizedBox(height: 24),
@@ -161,7 +163,7 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
-                    'Your Bkash number lets group members send payments to you.',
+                    'Add your bKash number so tour friends can pay you. It stays private: you choose who sees it.',
                     style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
                   ),
                 ),

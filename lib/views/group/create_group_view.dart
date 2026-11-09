@@ -53,7 +53,7 @@ class _CreateGroupViewState extends State<CreateGroupView> {
     final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Tour Group')),
+      appBar: AppBar(title: const Text('Start a tour')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(
@@ -94,7 +94,7 @@ class _CreateGroupViewState extends State<CreateGroupView> {
 
               // Currency Dropdown
               DropdownButtonFormField<Map<String, String>>(
-                value:      _selectedCurrency,
+                initialValue:      _selectedCurrency,
                 decoration: InputDecoration(
                   labelText:   'Currency',
                   prefixIcon:  const Icon(Icons.currency_exchange_rounded),

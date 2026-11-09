@@ -1,32 +1,28 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/notification_controller.dart';
 import '../../utils/app_router.dart';
 import '../../widgets/common/offline_banner.dart';
+import '../../widgets/ui/ui.dart';
 
-/// Bottom navigation shell — wraps all main tabs.
+/// Bottom navigation shell: wraps the four main tabs.
 class MainShellView extends StatelessWidget {
   final Widget child;
   const MainShellView({super.key, required this.child});
 
-  int _locationToIndex(String location) {
-    if (location.startsWith(AppRoutes.home))        return 0;
-    if (location.startsWith(AppRoutes.debtOverview))return 1;
-    if (location.startsWith(AppRoutes.notifications))return 2;
-    if (location.startsWith(AppRoutes.profile))     return 3;
-    return 0;
-  }
+  static const _routes = [
+    AppRoutes.home,
+    AppRoutes.debtOverview,
+    AppRoutes.notifications,
+    AppRoutes.profile,
+  ];
 
-  void _onTap(BuildContext context, int index) {
-    HapticFeedback.selectionClick();
-    switch (index) {
-      case 0: context.go(AppRoutes.home);          break;
-      case 1: context.go(AppRoutes.debtOverview);  break;
-      case 2: context.go(AppRoutes.notifications); break;
-      case 3: context.go(AppRoutes.profile);       break;
+  int _locationToIndex(String location) {
+    for (var i = 0; i < _routes.length; i++) {
+      if (location.startsWith(_routes[i])) return i;
     }
+    return 0;
   }
 
   @override
@@ -42,38 +38,17 @@ class MainShellView extends StatelessWidget {
           Expanded(child: child),
         ],
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: current,
-        onDestinationSelected: (i) => _onTap(context, i),
-        destinations: [
-          const NavigationDestination(
-            icon:           Icon(Icons.home_outlined),
-            selectedIcon:   Icon(Icons.home_rounded),
-            label:          'Home',
-          ),
-          const NavigationDestination(
-            icon:           Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon:   Icon(Icons.account_balance_wallet_rounded),
-            label:          'Debts',
-          ),
-          NavigationDestination(
-            icon:    Badge(
-              isLabelVisible: notifCtrl.hasUnread,
-              label: Text('${notifCtrl.unreadCount}'),
-              child: const Icon(Icons.notifications_outlined),
-            ),
-            selectedIcon: Badge(
-              isLabelVisible: notifCtrl.hasUnread,
-              label: Text('${notifCtrl.unreadCount}'),
-              child: const Icon(Icons.notifications_rounded),
-            ),
-            label: 'Notifications',
-          ),
-          const NavigationDestination(
-            icon:           Icon(Icons.person_outline_rounded),
-            selectedIcon:   Icon(Icons.person_rounded),
-            label:          'Profile',
-          ),
+      bottomNavigationBar: FloatingNavBar(
+        currentIndex: current,
+        onTap: (i) {
+          if (i != current) context.go(_routes[i]);
+        },
+        items: [
+          const NavItem(Icons.home_outlined, Icons.home_rounded, 'Home'),
+          const NavItem(Icons.account_balance_wallet_outlined, Icons.account_balance_wallet_rounded, 'Balances'),
+          NavItem(Icons.notifications_none_rounded, Icons.notifications_rounded, 'Activity',
+              badge: notifCtrl.hasUnread ? notifCtrl.unreadCount : 0),
+          const NavItem(Icons.person_outline_rounded, Icons.person_rounded, 'Profile'),
         ],
       ),
     );

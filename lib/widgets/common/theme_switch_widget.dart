@@ -1,43 +1,47 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/theme_controller.dart';
-import '../../utils/app_colors.dart';
+import '../../utils/app_palette.dart';
 
-/// An animated sun/moon theme toggle switch shown in app bars.
+/// Round light/dark toggle for app bars: the icon morphs between sun and moon.
 class ThemeSwitchWidget extends StatelessWidget {
-  const ThemeSwitchWidget({super.key});
+  final Color? background;
+  final Color? foreground;
 
-  static const _animDuration = Duration(milliseconds: 300);
+  const ThemeSwitchWidget({super.key, this.background, this.foreground});
 
   @override
   Widget build(BuildContext context) {
-    final themeCtrl  = context.watch<ThemeController>();
-    final isDark     = themeCtrl.resolveIsDark(context);
+    final themeCtrl = context.watch<ThemeController>();
+    final isDark    = themeCtrl.resolveIsDark(context);
+    final p         = context.palette;
 
-    return GestureDetector(
-      onTap: () => themeCtrl.toggleTheme(context),
-      child: AnimatedContainer(
-        duration: _animDuration,
-        width:    52,
-        height:   28,
-        padding:  const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          gradient: isDark ? AppColors.primaryGradient : null,
-          color:    isDark ? null : const Color(0xFFE0E0E0),
-        ),
-        child: AnimatedAlign(
-          duration: _animDuration,
-          curve:    Curves.easeInOut,
-          alignment: isDark ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width:  22,
-            height: 22,
-            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+    return Tooltip(
+      message: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          themeCtrl.toggleTheme(context);
+        },
+        child: Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(
+            color:  background ?? p.surface,
+            shape:  BoxShape.circle,
+            border: Border.all(color: p.hairline),
+          ),
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 320),
+            transitionBuilder: (child, anim) => RotationTransition(
+              turns: Tween(begin: 0.6, end: 1.0).animate(anim),
+              child: FadeTransition(opacity: anim, child: child),
+            ),
             child: Icon(
-              isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-              size:  13,
-              color: isDark ? AppColors.primary : AppColors.warning,
+              isDark ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+              key:   ValueKey(isDark),
+              size:  19,
+              color: foreground ?? p.accent,
             ),
           ),
         ),
@@ -45,5 +49,3 @@ class ThemeSwitchWidget extends StatelessWidget {
     );
   }
 }
-
-

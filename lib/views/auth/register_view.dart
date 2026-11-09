@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../services/email_service.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
-import '../../widgets/common/theme_switch_widget.dart';
-import 'otp_verification_view.dart';
+import 'password_setup_view.dart';
+import 'widgets/auth_hero.dart';
 
-/// Step 1 of 3 — user enters name + email, app sends an OTP to that email.
+/// Step 1 of 3 — user enters name + email. Step 2 sets a password and creates
+/// the account; step 3 confirms the email through a link Firebase sends.
 class RegisterView extends StatefulWidget {
   const RegisterView({super.key});
 
@@ -19,7 +19,6 @@ class _RegisterViewState extends State<RegisterView> {
   final _formKey   = GlobalKey<FormState>();
   final _nameCtrl  = TextEditingController();
   final _emailCtrl = TextEditingController();
-  bool _sending    = false;
 
   @override
   void dispose() {
@@ -28,87 +27,30 @@ class _RegisterViewState extends State<RegisterView> {
     super.dispose();
   }
 
-  Future<void> _sendOtp() async {
+  void _continue() {
     if (!_formKey.currentState!.validate()) return;
-    setState(() => _sending = true);
-
-    final otp   = EmailService.generateOtp();
-    final error = await EmailService.sendOtp(
-      toEmail: _emailCtrl.text.trim(),
-      toName:  _nameCtrl.text.trim(),
-      otp:     otp,
-    );
-
-    if (!mounted) return;
-    setState(() => _sending = false);
-
-    if (error == null) {
-      // Success — navigate to OTP verification
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => OtpVerificationView(
-          name:  _nameCtrl.text.trim(),
-          email: _emailCtrl.text.trim(),
-          otp:   otp,
-        ),
-      ));
-    } else {
-      // Show the actual error so we know exactly what failed
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content:         Text(error),
-        backgroundColor: AppColors.error,
-        duration:        const Duration(seconds: 6),
-      ));
-    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => PasswordSetupView(
+        name:  _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+      ),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final size   = MediaQuery.sizeOf(context);
 
     return Scaffold(
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Hero Header ─────────────────────────────────────────────────
-            Stack(
-              children: [
-                Container(
-                  height: size.height * 0.30,
-                  decoration: const BoxDecoration(
-                    gradient: AppColors.heroGradient,
-                    borderRadius: BorderRadius.only(
-                      bottomLeft:  Radius.circular(40),
-                      bottomRight: Radius.circular(40),
-                    ),
-                  ),
-                ),
-                Positioned(top: 52, left: 12, child: BackButton(color: Colors.white, onPressed: () => context.pop())),
-                Positioned(top: 52, right: 20, child: const ThemeSwitchWidget()),
-                Positioned.fill(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.mark_email_unread_rounded, size: 42, color: Colors.white),
-                      ),
-                      const SizedBox(height: 14),
-                      const Text('Create Account',
-                          style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text('We\'ll verify your email first',
-                          style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13)),
-                    ],
-                  ),
-                ),
-              ],
+            const AuthHero(
+              title:        'Create your account',
+              subtitle:     'Two quick steps, then we email you a link to confirm it\'s you.',
+              showBack:     true,
+              heightFactor: 0.32,
             ),
 
             // ── Step indicator ───────────────────────────────────────────────
@@ -116,11 +58,11 @@ class _RegisterViewState extends State<RegisterView> {
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
               child: Row(
                 children: [
-                  _StepDot(step: 1, label: 'Email',    active: true,  done: false),
+                  const _StepDot(step: 1, label: 'Details',  active: true,  done: false),
                   _StepLine(),
-                  _StepDot(step: 2, label: 'Verify',   active: false, done: false),
+                  const _StepDot(step: 2, label: 'Password', active: false, done: false),
                   _StepLine(),
-                  _StepDot(step: 3, label: 'Password', active: false, done: false),
+                  const _StepDot(step: 3, label: 'Verify',   active: false, done: false),
                 ],
               ),
             ),
@@ -134,7 +76,7 @@ class _RegisterViewState extends State<RegisterView> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     AppTextField(
-                      label:           'Full Name',
+                      label:           'Full name',
                       hint:            'Your name',
                       controller:      _nameCtrl,
                       prefixIcon:      Icons.person_outline_rounded,
@@ -149,27 +91,16 @@ class _RegisterViewState extends State<RegisterView> {
                       controller:      _emailCtrl,
                       keyboardType:    TextInputType.emailAddress,
                       textInputAction: TextInputAction.done,
-                      onFieldSubmitted: (_) => _sendOtp(),
+                      onFieldSubmitted: (_) => _continue(),
                       validator: (v) {
                         if (v == null || v.isEmpty)    return 'Email is required.';
                         if (!v.contains('@') || !v.contains('.')) return 'Enter a valid email.';
                         return null;
                       },
-                      decoration: InputDecoration(
-                        labelText: 'Email Address',
-                        hintText:  'you@example.com',
-                        prefixIcon: SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: Center(
-                            child: Image.asset(
-                              'assets/icons/gmail.png',
-                              width: 22,
-                              height: 22,
-                              fit: BoxFit.contain,
-                            ),
-                          ),
-                        ),
+                      decoration: const InputDecoration(
+                        labelText:  'Email',
+                        hintText:   'you@example.com',
+                        prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -177,9 +108,9 @@ class _RegisterViewState extends State<RegisterView> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color:        AppColors.primary.withOpacity(0.08),
+                        color:        AppColors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
-                        border:       Border.all(color: AppColors.primary.withOpacity(0.2)),
+                        border:       Border.all(color: AppColors.primary.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
@@ -187,7 +118,8 @@ class _RegisterViewState extends State<RegisterView> {
                           const SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'A 6-digit code will be sent to your email. It expires in 10 minutes.',
+                              'Next you\'ll choose a password. Then we\'ll email you a link: '
+                              'open it to confirm the address and start using the app.',
                               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
                             ),
                           ),
@@ -196,10 +128,9 @@ class _RegisterViewState extends State<RegisterView> {
                     ),
                     const SizedBox(height: 28),
                     AppButton(
-                      label:     'Send Verification Code',
-                      icon:      Icons.send_rounded,
-                      isLoading: _sending,
-                      onPressed: _sendOtp,
+                      label:     'Continue',
+                      icon:      Icons.arrow_forward_rounded,
+                      onPressed: _continue,
                     ),
                     const SizedBox(height: 20),
                     Row(
@@ -209,7 +140,7 @@ class _RegisterViewState extends State<RegisterView> {
                             style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14)),
                         TextButton(
                           onPressed: () => context.pop(),
-                          child: const Text('Sign In'),
+                          child: const Text('Sign in'),
                         ),
                       ],
                     ),
@@ -235,7 +166,7 @@ class _StepDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = done || active ? AppColors.primary : Colors.grey.withOpacity(0.4);
+    final color = done || active ? AppColors.primary : Colors.grey.withValues(alpha: 0.4);
     return Column(
       children: [
         Container(
@@ -270,7 +201,7 @@ class _StepLine extends StatelessWidget {
         child: Container(
           height: 2,
           margin: const EdgeInsets.only(bottom: 18),
-          color: Colors.grey.withOpacity(0.3),
+          color: Colors.grey.withValues(alpha: 0.3),
         ),
       );
 }

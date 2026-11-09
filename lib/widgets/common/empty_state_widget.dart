@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import '../../utils/app_palette.dart';
 
-/// Reusable empty state display with icon, title, and subtitle.
-/// Same API as EmptyState in loading_widget.dart but exported separately for clean imports.
+/// Friendly empty state: a soft icon medallion, a title and a hint.
 class EmptyStateWidget extends StatelessWidget {
   final IconData icon;
   final String   title;
@@ -18,26 +18,39 @@ class EmptyStateWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final p = context.palette;
+    final t = Theme.of(context).textTheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(24),
+              width: 104, height: 104,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color:  scheme.primaryContainer,
-                shape:  BoxShape.circle,
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [p.accent.withValues(alpha: p.isDark ? 0.16 : 0.12), p.accent.withValues(alpha: 0)],
+                ),
               ),
-              child: Icon(icon, size: 48, color: scheme.primary),
+              child: Container(
+                width: 64, height: 64,
+                decoration: BoxDecoration(
+                  color:        p.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border:       Border.all(color: p.hairline),
+                  boxShadow:    p.cardShadow,
+                ),
+                child: Icon(icon, size: 28, color: p.accent),
+              ),
             ),
-            const SizedBox(height: 20),
-            Text(title,    style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant), textAlign: TextAlign.center),
-            if (action != null) ...[const SizedBox(height: 24), action!],
+            const SizedBox(height: 16),
+            Text(title, style: t.titleMedium?.copyWith(fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+            const SizedBox(height: 6),
+            Text(subtitle, style: t.bodyMedium?.copyWith(color: p.textMuted), textAlign: TextAlign.center),
+            if (action != null) ...[const SizedBox(height: 22), action!],
           ],
         ),
       ),

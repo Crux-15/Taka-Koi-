@@ -8,7 +8,8 @@ import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/theme_switch_widget.dart';
 
-/// Step 3 of 3 — user sets a password, account is created, redirected to login.
+/// Step 2 of 3 — user sets a password and the account is created. Firebase
+/// then emails a verification link and the app moves to the verify screen.
 class PasswordSetupView extends StatefulWidget {
   final String name;
   final String email;
@@ -34,33 +35,17 @@ class _PasswordSetupViewState extends State<PasswordSetupView> {
     if (!_formKey.currentState!.validate()) return;
     final ctrl = context.read<AuthController>();
 
-    // Step 1: Create the Firebase Auth account
-    final ok = await ctrl.register(widget.email, _passCtrl.text);
+    // Creates the account and profile and sends the verification email. The
+    // controller does it all, so it completes even if this screen goes away.
+    final ok = await ctrl.register(
+      name:     widget.name,
+      email:    widget.email,
+      password: _passCtrl.text,
+    );
     if (!mounted) return;
 
     if (ok) {
-      // Step 2: Set display name in Firebase Auth
-      await ctrl.updateName(widget.name);
-      if (!mounted) return;
-
-      // Step 3: Create the Firestore user document.
-      // This is critical — without it, the user exists in Firebase Auth
-      // but has NO profile in Firestore, so create/join group features
-      // fail silently (same doc that Google sign-in creates automatically).
-      await ctrl.completeProfileSetup(name: widget.name);
-      if (!mounted) return;
-
-      // Step 4: Sign out so user logs in fresh (confirms they own the email)
-      await ctrl.signOut();
-      if (!mounted) return;
-
-      // Step 5: Go to login with success message
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content:         Text('🎉 Account created! Please sign in.'),
-        backgroundColor: AppColors.success,
-        duration:        Duration(seconds: 3),
-      ));
-      context.go(AppRoutes.login);
+      context.go(AppRoutes.verifyEmail);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content:         Text(ctrl.errorMessage ?? 'Failed to create account. Try again.'),
@@ -93,8 +78,8 @@ class _PasswordSetupViewState extends State<PasswordSetupView> {
                     ),
                   ),
                 ),
-                Positioned(top: 52, left: 12, child: BackButton(color: Colors.white)),
-                Positioned(top: 52, right: 20, child: const ThemeSwitchWidget()),
+                const Positioned(top: 52, left: 12, child: BackButton(color: Colors.white)),
+                const Positioned(top: 52, right: 20, child: ThemeSwitchWidget()),
                 Positioned.fill(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -103,7 +88,7 @@ class _PasswordSetupViewState extends State<PasswordSetupView> {
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
+                          color: Colors.white.withValues(alpha: 0.15),
                           shape: BoxShape.circle,
                         ),
                         child: const Icon(Icons.lock_rounded, size: 42, color: Colors.white),
@@ -114,7 +99,7 @@ class _PasswordSetupViewState extends State<PasswordSetupView> {
                       const SizedBox(height: 4),
                       Text(
                         widget.email,
-                        style: TextStyle(color: Colors.white.withOpacity(0.75), fontSize: 13),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 13),
                       ),
                     ],
                   ),
@@ -127,11 +112,11 @@ class _PasswordSetupViewState extends State<PasswordSetupView> {
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 0),
               child: Row(
                 children: [
-                  _StepDot(step: 1, label: 'Email',    active: false, done: true),
+                  const _StepDot(step: 1, label: 'Details',  active: false, done: true),
                   _StepLine(),
-                  _StepDot(step: 2, label: 'Verify',   active: false, done: true),
+                  const _StepDot(step: 2, label: 'Password', active: true,  done: false),
                   _StepLine(),
-                  _StepDot(step: 3, label: 'Password', active: true,  done: false),
+                  const _StepDot(step: 3, label: 'Verify',   active: false, done: false),
                 ],
               ),
             ),
@@ -148,13 +133,13 @@ class _PasswordSetupViewState extends State<PasswordSetupView> {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color:        AppColors.success.withOpacity(0.08),
+                        color:        AppColors.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
-                        border:       Border.all(color: AppColors.success.withOpacity(0.3)),
+                        border:       Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.verified_rounded, color: AppColors.success, size: 18),
+                          const Icon(Icons.person_rounded, color: AppColors.primary, size: 18),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
@@ -166,15 +151,6 @@ class _PasswordSetupViewState extends State<PasswordSetupView> {
                                     style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
                               ],
                             ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color:        AppColors.success.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text('Verified',
-                                style: TextStyle(color: AppColors.success, fontSize: 11, fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ),
@@ -233,7 +209,7 @@ class _StepDot extends StatelessWidget {
   const _StepDot({required this.step, required this.label, required this.active, required this.done});
   @override
   Widget build(BuildContext context) {
-    final color = done || active ? AppColors.primary : Colors.grey.withOpacity(0.4);
+    final color = done || active ? AppColors.primary : Colors.grey.withValues(alpha: 0.4);
     return Column(children: [
       Container(
         width: 32, height: 32,
@@ -255,6 +231,6 @@ class _StepDot extends StatelessWidget {
 class _StepLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Expanded(
-    child: Container(height: 2, margin: const EdgeInsets.only(bottom: 18), color: Colors.grey.withOpacity(0.3)),
+    child: Container(height: 2, margin: const EdgeInsets.only(bottom: 18), color: Colors.grey.withValues(alpha: 0.3)),
   );
 }

@@ -9,6 +9,12 @@ import '../../services/debt_service.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/loading_widget.dart';
+import '../../widgets/ui/ui.dart';
+import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/common/avatar_widget.dart';
+import '../../utils/display_helpers.dart';
+import '../../utils/app_log.dart';
+import '../../utils/app_exception.dart';
 
 /// Screen opened when a payment notification is tapped.
 /// If the current user is the receiver (toUserId), they can approve or reject.
@@ -24,6 +30,7 @@ class PaymentReviewView extends StatefulWidget {
 class _PaymentReviewViewState extends State<PaymentReviewView> {
   final DebtService _service = DebtService();
   PaymentModel? _payment;
+  String? _loadError;
   bool _loading = true;
   bool _working = false;
 
@@ -37,9 +44,18 @@ class _PaymentReviewViewState extends State<PaymentReviewView> {
     final gid = widget.groupId.isNotEmpty
         ? widget.groupId
         : context.read<GroupController>().activeGroup?.groupId ?? '';
-    final p = await _service.fetchPayment(gid, widget.paymentId);
-    if (!mounted) return;
-    setState(() { _payment = p; _loading = false; });
+    try {
+      final p = await _service.fetchPayment(gid, widget.paymentId);
+      if (!mounted) return;
+      setState(() { _payment = p; _loading = false; });
+    } catch (e, s) {
+      logError('load payment', e, s);
+      if (!mounted) return;
+      setState(() {
+        _loading   = false;
+        _loadError = friendlyError(e, 'Couldn\'t load this payment.');
+      });
+    }
   }
 
   String get _groupId =>
@@ -53,23 +69,23 @@ class _PaymentReviewViewState extends State<PaymentReviewView> {
   Future<void> _approve() async {
     if (_payment == null) return;
     setState(() => _working = true);
-    final ok = await context.read<DebtController>().approvePayment(
+    final debtCtrl = context.read<DebtController>();
+    final ok = await debtCtrl.approvePayment(
       _groupId, _payment!, _symbol,
     );
     if (!mounted) return;
     setState(() => _working = false);
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Payment approved! Debt updated.'),
-          backgroundColor: AppColors.success,
-        ),
+        SnackBar(content: Text(doneMessage('Confirmed. Their debt went down.', queued: debtCtrl.savedOffline))),
       );
       Navigator.of(context).pop();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to approve. Try again.'), backgroundColor: AppColors.error),
+        SnackBar(content: Text(debtCtrl.lastError ?? 'Failed to approve. Try again.'), backgroundColor: AppColors.error),
       );
+      // The payment may have changed (e.g. already approved elsewhere); reload it.
+      _load();
     }
   }
 
@@ -80,12 +96,11 @@ class _PaymentReviewViewState extends State<PaymentReviewView> {
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) => AlertDialog(
-        title:   const Text('Reject Payment?'),
+        title:   const Text('Reject this payment?'),
         content: TextField(
           controller: noteCtrl,
           decoration: const InputDecoration(
-            hintText: 'Reason (optional)',
-            border:   OutlineInputBorder(),
+            hintText: 'Why? (optional, e.g. "I only got 400")',
           ),
           maxLines: 2,
         ),
@@ -122,169 +137,131 @@ class _PaymentReviewViewState extends State<PaymentReviewView> {
   Widget build(BuildContext context) {
     final myUid  = context.read<AuthController>().user?.uid ?? '';
     final symbol = _symbol;
+    final p      = context.palette;
+    final t      = Theme.of(context).textTheme;
+    final pay    = _payment;
+
+    if (_loading) return const Scaffold(body: Center(child: AppLoader()));
+    if (pay == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: EmptyStateWidget(
+          icon:     Icons.search_off_rounded,
+          title:    'Payment not found',
+          subtitle: _loadError ?? 'It may have been removed, or you\'re no longer in this tour.',
+        ),
+      );
+    }
+
+    final isReceiver = pay.toUserId == myUid;
+    final isPayer    = pay.fromUserId == myUid;
+    final (String headline, ChipTone tone) = switch (pay.status) {
+      'approved' => ('Confirmed', ChipTone.positive),
+      'rejected' => ('Rejected', ChipTone.negative),
+      _          => ('Waiting for confirmation', ChipTone.pending),
+    };
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Payment Review')),
-      body: _loading
-          ? const Center(child: AppLoader())
-          : _payment == null
-              ? const Center(child: Text('Payment not found.'))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _StatusBanner(payment: _payment!),
-                      const SizedBox(height: 20),
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Payment Details',
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
-                              const Divider(height: 20),
-                              _DetailRow(label: 'From',   value: _payment!.fromUserName),
-                              _DetailRow(label: 'To',     value: _payment!.toUserName),
-                              _DetailRow(
-                                label: 'Amount',
-                                value: '$symbol${_payment!.amount.toStringAsFixed(2)}',
-                                valueColor: AppColors.primary,
-                                bold: true,
-                              ),
-                              _DetailRow(
-                                label: 'Date',
-                                value: DateFormat('MMM d, y • h:mm a').format(_payment!.loggedAt),
-                              ),
-                              if (_payment!.bkashNumber != null && _payment!.bkashNumber!.isNotEmpty)
-                                _DetailRow(label: 'bKash', value: _payment!.bkashNumber!),
-                              if (_payment!.rejectionNote != null && _payment!.rejectionNote!.isNotEmpty)
-                                _DetailRow(
-                                  label: 'Rejection Note',
-                                  value: _payment!.rejectionNote!,
-                                  valueColor: AppColors.error,
-                                ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Action Buttons — only for receiver when pending
-                      if (_payment!.isPending && _payment!.toUserId == myUid) ...[
-                        if (_working)
-                          const Center(child: AppLoader())
-                        else ...[
-                          AppButton(
-                            label:     'Approve Payment',
-                            isLoading: false,
-                            onPressed: _approve,
-                            color:     AppColors.success,
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              icon:    const Icon(Icons.cancel_outlined, color: AppColors.error),
-                              label:   const Text('Reject', style: TextStyle(color: AppColors.error)),
-                              style:   OutlinedButton.styleFrom(
-                                side:    const BorderSide(color: AppColors.error),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape:   RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              ),
-                              onPressed: _reject,
-                            ),
-                          ),
-                        ],
-                      ],
-
-                      if (!_payment!.isPending)
-                        Center(
-                          child: Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              _payment!.isApproved
-                                  ? 'This payment was approved. Debt has been settled.'
-                                  : 'This payment was rejected.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: _payment!.isApproved ? AppColors.success : AppColors.error,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
+      appBar: AppBar(title: const Text('Payment'), centerTitle: true),
+      bottomNavigationBar: isReceiver && pay.isPending
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: AppButton(label: 'Reject', icon: Icons.close_rounded, outlined: true, color: p.negative,
+                          onPressed: _working ? null : _reject),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: AppButton(label: 'I got it', icon: Icons.check_rounded, color: p.positive,
+                          isLoading: _working, onPressed: _approve),
+                    ),
+                  ],
                 ),
-    );
-  }
-}
-
-class _StatusBanner extends StatelessWidget {
-  final PaymentModel payment;
-  const _StatusBanner({required this.payment});
-
-  @override
-  Widget build(BuildContext context) {
-    final color  = payment.isPending  ? Colors.orange
-                 : payment.isApproved ? AppColors.success
-                 :                      AppColors.error;
-    final icon   = payment.isPending  ? Icons.pending_actions_rounded
-                 : payment.isApproved ? Icons.check_circle_rounded
-                 :                      Icons.cancel_rounded;
-    final label  = payment.isPending  ? 'Pending Review'
-                 : payment.isApproved ? 'Approved'
-                 :                      'Rejected';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color:        color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: color.withOpacity(0.3)),
+              ),
+            )
+          : null,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+        children: [
+          AppCard(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    AvatarWidget(name: pay.fromUserName, size: 48),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      child: Icon(Icons.arrow_forward_rounded, color: p.textFaint),
+                    ),
+                    AvatarWidget(name: pay.toUserName, size: 48),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  '${isPayer ? 'You' : firstName(pay.fromUserName)} paid ${isReceiver ? 'you' : firstName(pay.toUserName)}',
+                  style: t.bodyMedium?.copyWith(color: p.textMuted),
+                ),
+                const SizedBox(height: 4),
+                MoneyText(pay.amount, symbol: symbol, size: 38),
+                const SizedBox(height: 10),
+                StatusChip(headline, tone: tone),
+                const SizedBox(height: 16),
+                Divider(height: 1, color: p.hairline),
+                const SizedBox(height: 8),
+                _Detail('Logged', DateFormat('EEE, d MMM · h:mm a').format(pay.loggedAt)),
+                if (pay.approvedAt != null) _Detail('Confirmed', DateFormat('EEE, d MMM · h:mm a').format(pay.approvedAt!)),
+                if (pay.bkashNumber != null && pay.bkashNumber!.isNotEmpty) _Detail('bKash', pay.bkashNumber!),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (pay.isPending && isReceiver)
+            InfoBanner(
+              'Only confirm if the money really reached you (check your bKash or cash). '
+              'Confirming lowers what ${firstName(pay.fromUserName)} owes you.',
+              icon: Icons.shield_rounded, tone: ChipTone.accent,
+            )
+          else if (pay.isPending && isPayer)
+            InfoBanner('Waiting for ${firstName(pay.toUserName)} to confirm they got it.',
+                icon: Icons.schedule_rounded, tone: ChipTone.pending)
+          else if (pay.status == 'rejected')
+            InfoBanner(
+              (pay.rejectionNote ?? '').isNotEmpty
+                  ? 'Reason: "${pay.rejectionNote}". ${isPayer ? 'You can log the right amount again from Balances.' : ''}'
+                  : (isPayer ? 'You can log the right amount again from Balances.' : 'This payment was rejected.'),
+              icon: Icons.info_outline_rounded, tone: ChipTone.negative,
+            )
+          else if (pay.status == 'approved')
+            const InfoBanner('Done. The debt was lowered by this amount.', icon: Icons.verified_rounded, tone: ChipTone.positive),
+        ],
       ),
-      child: Row(children: [
-        Icon(icon, color: color, size: 28),
-        const SizedBox(width: 12),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 16)),
-          Text('${payment.fromUserName} paid ${payment.toUserName}',
-              style: TextStyle(fontSize: 13, color: color.withOpacity(0.8))),
-        ]),
-      ]),
     );
   }
 }
 
-class _DetailRow extends StatelessWidget {
+class _Detail extends StatelessWidget {
   final String label;
   final String value;
-  final Color? valueColor;
-  final bool   bold;
-  const _DetailRow({required this.label, required this.value, this.valueColor, this.bold = false});
+  const _Detail(this.label, this.value);
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final t = Theme.of(context).textTheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(
-          width: 120,
-          child: Text(label, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 14)),
-        ),
-        Expanded(
-          child: Text(value, style: TextStyle(
-            fontSize:   14,
-            fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-            color:      valueColor ?? scheme.onSurface,
-          )),
-        ),
-      ]),
+      child: Row(
+        children: [
+          Text(label, style: t.bodySmall),
+          const Spacer(),
+          Text(value, style: t.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+        ],
+      ),
     );
   }
 }

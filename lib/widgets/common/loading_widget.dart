@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../utils/app_colors.dart';
+import 'empty_state_widget.dart';
 
 /// Full-screen loading overlay.
 class LoadingOverlay extends StatelessWidget {
@@ -23,12 +24,12 @@ class LoadingOverlay extends StatelessWidget {
   }
 }
 
-/// Branded circular loader.
+/// Branded loader: a thin gold ring.
 class AppLoader extends StatelessWidget {
   final double size;
   final Color? color;
 
-  const AppLoader({super.key, this.size = 44, this.color});
+  const AppLoader({super.key, this.size = 32, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +37,15 @@ class AppLoader extends StatelessWidget {
       width:  size,
       height: size,
       child:  CircularProgressIndicator(
-        strokeWidth: 3,
-        color: color ?? Theme.of(context).colorScheme.primary,
+        strokeWidth: 2.5,
+        strokeCap:   StrokeCap.round,
+        color:       color ?? Theme.of(context).colorScheme.primary,
       ),
     );
   }
 }
 
-/// Inline empty state with icon, title, and subtitle.
+/// Inline empty state (same look as [EmptyStateWidget]).
 class EmptyState extends StatelessWidget {
   final IconData icon;
   final String   title;
@@ -59,30 +61,6 @@ class EmptyState extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color:        scheme.primaryContainer,
-                shape:        BoxShape.circle,
-              ),
-              child: Icon(icon, size: 48, color: scheme.primary),
-            ),
-            const SizedBox(height: 20),
-            Text(title,    style: Theme.of(context).textTheme.titleMedium, textAlign: TextAlign.center),
-            const SizedBox(height: 8),
-            Text(subtitle, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant), textAlign: TextAlign.center),
-            if (action != null) ...[const SizedBox(height: 24), action!],
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      EmptyStateWidget(icon: icon, title: title, subtitle: subtitle, action: action);
 }

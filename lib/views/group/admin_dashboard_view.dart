@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/group_controller.dart';
@@ -9,6 +8,8 @@ import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/theme_switch_widget.dart';
+import '../../widgets/ui/ui.dart';
+import '../profile/widgets/group_code_tile.dart';
 
 /// Group Settings — only accessible to the group creator.
 class AdminDashboardView extends StatefulWidget {
@@ -32,13 +33,13 @@ class _AdminDashboardViewState extends State<AdminDashboardView>
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Group Settings'),
-        actions: [const ThemeSwitchWidget(), const SizedBox(width: 16)],
-        bottom: TabBar(
+        title: const Text('Tour settings'),
+        actions: const [ThemeSwitchWidget(), SizedBox(width: 16)],
+        bottom: PillTabBar(
           controller: _tabs,
           tabs: const [
             Tab(text: 'Members'),
-            Tab(text: 'Group Code'),
+            Tab(text: 'Join code'),
           ],
         ),
       ),
@@ -71,7 +72,7 @@ class _MembersTab extends StatelessWidget {
       return const EmptyStateWidget(
         icon:     Icons.people_alt_outlined,
         title:    'No Members Yet',
-        subtitle: 'Share the group code to invite people.',
+        subtitle: 'Share the join code to invite people.',
       );
     }
 
@@ -87,7 +88,7 @@ class _MembersTab extends StatelessWidget {
           child: ListTile(
             leading:  AvatarWidget(imageUrl: m.avatarUrl, name: m.name, size: 44),
             title:    Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-            subtitle: Text(isAdmin ? 'Group Creator' : 'Member',
+            subtitle: Text(isAdmin ? 'Started the tour' : 'Member',
                 style: TextStyle(fontSize: 12, color: isAdmin ? AppColors.primary : null)),
             trailing: !isAdmin && !isSelf
                 ? IconButton(
@@ -116,9 +117,16 @@ class _MembersTab extends StatelessWidget {
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(dialogCtx).pop();
-              groupCtrl.removeMember(m.userId);
+              final messenger = ScaffoldMessenger.of(context);
+              final ok = await groupCtrl.removeMember(m.userId);
+              if (!ok) {
+                messenger.showSnackBar(SnackBar(
+                  content:         Text(groupCtrl.errorMessage ?? 'Couldn\'t remove ${m.name}.'),
+                  backgroundColor: AppColors.error,
+                ));
+              }
             },
             child: const Text('Remove', style: TextStyle(color: AppColors.error)),
           ),
@@ -128,118 +136,26 @@ class _MembersTab extends StatelessWidget {
   }
 }
 
-// ── Group Code Tab ────────────────────────────────────────────────────────────
 class _GroupCodeTab extends StatelessWidget {
-  final GroupModel      group;
+  final GroupModel group;
   final GroupController groupCtrl;
   const _GroupCodeTab({required this.group, required this.groupCtrl});
 
   @override
   Widget build(BuildContext context) {
-    final scheme   = Theme.of(context).colorScheme;
-    final isExpired = group.isCodeExpired;
-
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          const SizedBox(height: 24),
-          Builder(
-            builder: (ctx) {
-              final isDark = Theme.of(ctx).brightness == Brightness.dark;
-              return Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 36),
-                decoration: BoxDecoration(
-                  gradient: isDark
-                      ? const LinearGradient(
-                          colors: [Color(0xFF26221A), Color(0xFF161411)],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        )
-                      : const LinearGradient(
-                          colors: [Colors.white, Color(0xFFFAF8F2)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                    color: isDark ? const Color(0xFFD4A017).withOpacity(0.3) : const Color(0xFFE2DBCB),
-                    width: 1.2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: isDark ? Colors.black.withOpacity(0.35) : Colors.black.withOpacity(0.06),
-                      blurRadius: 18,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Text(
-                      group.groupCode,
-                      style: TextStyle(
-                        fontSize: 48, fontWeight: FontWeight.w900,
-                        color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
-                        letterSpacing: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      isExpired ? '⚠ Code expired — tap Refresh' : 'Share this code to invite members',
-                      style: TextStyle(
-                        color: isExpired ? AppColors.error : (isDark ? const Color(0xFFB0A880) : scheme.onSurfaceVariant),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  icon:  const Icon(Icons.copy_rounded),
-                  label: const Text('Copy Code'),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: group.groupCode));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Code copied to clipboard!')),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton.icon(
-                  icon:  const Icon(Icons.refresh_rounded),
-                  label: const Text('Refresh Code'),
-                  style: FilledButton.styleFrom(backgroundColor: scheme.secondary),
-                  onPressed: groupCtrl.isLoading ? null : () => groupCtrl.refreshGroupCode(),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            isExpired
-                ? 'This code has expired. Refresh to generate a new one.'
-                : 'Code valid until ${_formatExpiry(group.groupCodeExpiresAt)}',
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+      children: [
+        AppCard(child: GroupCodeTile(group: group, groupCtrl: groupCtrl)),
+        const SizedBox(height: 14),
+        const InfoBanner(
+          'Codes last an hour, so an old message with the code can\'t be used later. '
+          'Make a new one whenever you invite someone.',
+          icon: Icons.shield_rounded,
+          tone: ChipTone.accent,
+        ),
+      ],
     );
-  }
-
-  String _formatExpiry(DateTime dt) {
-    return '${dt.day}/${dt.month}/${dt.year} at ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 }
 

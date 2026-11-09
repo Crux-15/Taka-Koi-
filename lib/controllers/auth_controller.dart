@@ -1,20 +1,37 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/user_model.dart';
 import '../services/auth_service.dart';
+import '../utils/app_exception.dart';
+import '../utils/app_log.dart';
 
-enum AuthStatus { initial, loading, authenticated, unauthenticated, error }
+/// [unverified]: signed in with email and password, but the email address
+/// hasn't been confirmed yet. The database refuses everything except the
+/// user's own profile until it is.
+enum AuthStatus { initial, loading, authenticated, unverified, unauthenticated, error }
 
 /// Controller for authentication state and operations.
 class AuthController extends ChangeNotifier {
-  final AuthService _authService = AuthService();
+  /// The service can be swapped for a fake in tests.
+  AuthController({AuthService? authService}) : _authService = authService ?? AuthService();
+
+  final AuthService _authService;
+
+  /// Tests and screenshots only: act as if [user] is signed in.
+  @visibleForTesting
+  void debugSignIn(UserModel user) {
+    _user   = user;
+    _status = AuthStatus.authenticated;
+    notifyListeners();
+  }
 
   AuthStatus _status    = AuthStatus.initial;
   UserModel? _user;
   String?    _errorMessage;
   bool       _isUpdatingProfile = false; // guard: prevents router redirect during profile save
+  bool       _isRegistering     = false; // guard: registration sets its own state when done
 
   // Completer that resolves when the first Firebase auth state is determined.
   final Completer<void> _authReadyCompleter = Completer<void>();
@@ -28,8 +45,11 @@ class AuthController extends ChangeNotifier {
   UserModel? get user            => _user;
   String?    get errorMessage    => _errorMessage;
   bool get isAuthenticated       => _status == AuthStatus.authenticated;
+  bool get needsEmailVerification => _status == AuthStatus.unverified;
   bool get isLoading             => _status == AuthStatus.loading;
-  bool get isUpdatingProfile     => _isUpdatingProfile;
+
+  /// Email address of whoever is signed in (also while unverified).
+  String get signedInEmail => _authService.currentUser?.email ?? '';
 
   /// Listen to Firebase auth changes and keep [_user] in sync.
   void listenToAuthChanges() {
@@ -37,13 +57,20 @@ class AuthController extends ChangeNotifier {
       // Don't react to auth events while a profile update is in progress.
       // Firebase fires authStateChanges on token refresh / photoURL changes,
       // which would temporarily reset state and trigger a router redirect.
-      if (_isUpdatingProfile) return;
+      if (_isUpdatingProfile || _isRegistering) return;
 
       if (firebaseUser == null) {
         _status = AuthStatus.unauthenticated;
         _user   = null;
         notifyListeners();
         _completeAuthReady(); // auth state determined: not logged in
+        return;
+      }
+      if (!firebaseUser.emailVerified) {
+        _status = AuthStatus.unverified;
+        _user   = null;
+        notifyListeners();
+        _completeAuthReady();
         return;
       }
       // Try to load user document
@@ -66,13 +93,6 @@ class AuthController extends ChangeNotifier {
       _authStateReceived = true;
       _authReadyCompleter.complete();
     }
-  }
-
-  /// Returns true if the current Firebase user has a Firestore profile.
-  Future<bool> currentUserHasProfile() async {
-    final u = _authService.currentUser;
-    if (u == null) return false;
-    return _authService.userDocExists(u.uid);
   }
 
   // ── Google Sign-In ────────────────────────────────────────────────────────
@@ -106,7 +126,7 @@ class AuthController extends ChangeNotifier {
       return true;
     } on FirebaseAuthException catch (e) {
       debugPrint('FirebaseAuthException during Google Sign-In: ${e.code} - ${e.message}');
-      _setError(e.message ?? 'Google sign-in failed.');
+      _setError(_googleError(e.code));
       return false;
     } catch (e, stack) {
       debugPrint('Exception during Google Sign-In: $e\n$stack');
@@ -130,6 +150,19 @@ class AuthController extends ChangeNotifier {
     _setLoading();
     try {
       final cred = await _authService.signInWithEmail(email, password);
+      if (!cred.user!.emailVerified) {
+        // Accounts made before real verification existed land here too.
+        // Send a link now; the verify screen can resend it.
+        try {
+          await _authService.sendEmailVerification();
+        } catch (e, s) {
+          logError('signInWithEmail', e, s);
+        }
+        _user   = null;
+        _status = AuthStatus.unverified;
+        notifyListeners();
+        return true;
+      }
       _user   = await _authService.fetchUser(cred.user!.uid);
       _status = AuthStatus.authenticated;
       notifyListeners();
@@ -145,32 +178,106 @@ class AuthController extends ChangeNotifier {
   }
 
   // ── Register ──────────────────────────────────────────────────────────────
-  Future<bool> register(String email, String password) async {
+  /// Creates the account and profile, then has Firebase email a verification
+  /// link. Ends in [AuthStatus.unverified]; the app is usable once the link
+  /// has been opened.
+  ///
+  /// Everything happens here rather than in the screen, so it finishes even
+  /// if the router moves away from the registration screen part-way.
+  Future<bool> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    _isRegistering = true;
     _setLoading();
     try {
-      await _authService.registerWithEmail(email, password);
-      // Don't set authenticated yet — they still need to complete profile setup
-      _status = AuthStatus.unauthenticated;
+      final cred = await _authService.registerWithEmail(email, password);
+      final fbUser = cred.user!;
+      try {
+        await fbUser.updateDisplayName(name);
+      } catch (e, s) {
+        logError('register', e, s);
+      }
+      await _authService.createUserDoc(UserModel(
+        uid:       fbUser.uid,
+        name:      name,
+        email:     fbUser.email ?? email,
+        avatarUrl: '',
+        createdAt: DateTime.now(),
+      ));
+      try {
+        await _authService.sendEmailVerification();
+      } catch (e, s) {
+        logError('register', e, s);
+        // They can resend from the verify screen.
+      }
+      _user   = null;
+      _status = AuthStatus.unverified;
       notifyListeners();
       return true;
     } on FirebaseAuthException catch (e) {
       _setError(_mapFirebaseError(e.code));
       return false;
+    } catch (e, s) {
+      logError('register', e, s);
+      _setError('Could not finish creating your account. Check your connection and try again.');
+      return false;
+    } finally {
+      _isRegistering = false;
     }
   }
 
-  /// Updates the Firebase Auth display name (called after OTP registration).
-  Future<void> updateName(String name) async {
+  // ── Email Verification ────────────────────────────────────────────────────
+  /// Resends the verification link. Returns an error message, or null.
+  Future<String?> resendVerificationEmail() async {
     try {
-      await _authService.currentUser?.updateDisplayName(name);
-    } catch (_) {}
+      await _authService.sendEmailVerification();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'too-many-requests') {
+        return 'Too many emails sent. Wait a few minutes and try again.';
+      }
+      return _mapFirebaseError(e.code);
+    } catch (e, s) {
+      logError('resendVerificationEmail', e, s);
+      return 'Could not send the email. Check your connection.';
+    }
+  }
+
+  /// Checks whether the link has been opened. If so, loads (or creates) the
+  /// profile and signs the user in properly.
+  Future<bool> checkEmailVerified() async {
+    try {
+      final verified = await _authService.reloadAndCheckVerified();
+      if (!verified) return false;
+      final fbUser = _authService.currentUser!;
+      var profile = await _authService.fetchUser(fbUser.uid);
+      if (profile == null) {
+        profile = UserModel(
+          uid:       fbUser.uid,
+          name:      fbUser.displayName ?? 'User',
+          email:     fbUser.email ?? '',
+          avatarUrl: fbUser.photoURL ?? '',
+          createdAt: DateTime.now(),
+        );
+        await _authService.createUserDoc(profile);
+      }
+      _user   = profile;
+      _status = AuthStatus.authenticated;
+      notifyListeners();
+      return true;
+    } catch (e, s) {
+      logError('checkEmailVerified', e, s);
+      return false;
+    }
   }
 
   // ── Profile Setup ─────────────────────────────────────────────────────────
   Future<bool> completeProfileSetup({
     required String name,
     String? bkashNumber,
-    File?   avatarFile,
+    Uint8List? avatarFile,
   }) async {
     _setLoading();
     try {
@@ -181,7 +288,7 @@ class AuthController extends ChangeNotifier {
       }
       String avatarUrl = fbUser.photoURL ?? '';
       if (avatarFile != null) {
-        avatarUrl = await _authService.uploadAvatar(fbUser.uid, avatarFile);
+        avatarUrl = await _authService.saveAvatar(fbUser.uid, avatarFile);
       }
       final model = UserModel(
         uid:          fbUser.uid,
@@ -193,7 +300,7 @@ class AuthController extends ChangeNotifier {
       );
       await _authService.createUserDoc(model);
       _user   = model;
-      _status = AuthStatus.authenticated;
+      _status = fbUser.emailVerified ? AuthStatus.authenticated : AuthStatus.unverified;
       notifyListeners();
       return true;
     } catch (e) {
@@ -206,7 +313,7 @@ class AuthController extends ChangeNotifier {
   Future<bool> updateProfile({
     String? name,
     String? bkashNumber,
-    File?   avatarFile,
+    Uint8List? avatarFile,
   }) async {
     if (_user == null) return false;
     // Set guard flag — suppresses auth listener & keeps isAuthenticated=true.
@@ -219,16 +326,25 @@ class AuthController extends ChangeNotifier {
       if (name != null && name.isNotEmpty) updates['name'] = name;
       if (bkashNumber != null) updates['bkashNumber'] = bkashNumber;
       if (avatarFile != null) {
-        final url = await _authService.uploadAvatar(_user!.uid, avatarFile);
+        final url = await _authService.saveAvatar(_user!.uid, avatarFile);
         updates['avatarUrl'] = url;
       }
       await _authService.updateUserDoc(_user!.uid, updates);
+      if (bkashNumber != null && bkashNumber != _user!.bkashNumber) {
+        try {
+          await _authService.updateSharedBkash(_user!.uid, bkashNumber);
+        } catch (e, s) {
+          logError('updateProfile', e, s);
+          // Saved on your profile; people you shared with keep the old one for now.
+        }
+      }
       _user = await _authService.fetchUser(_user!.uid);
       // status stays AuthStatus.authenticated — no redirect triggered
       _errorMessage = null;
       return true;
-    } catch (e) {
-      _errorMessage = 'Update failed.';
+    } catch (e, s) {
+      logError('updateProfile', e, s);
+      _errorMessage = friendlyError(e, 'Update failed.');
       return false;
     } finally {
       // Always clear the flag and notify — even if an error occurred
@@ -250,7 +366,8 @@ class AuthController extends ChangeNotifier {
     try {
       await _authService.sendPasswordResetEmail(email);
       return true;
-    } catch (_) {
+    } catch (e, s) {
+      logError('sendPasswordReset', e, s);
       return false;
     }
   }
@@ -274,14 +391,43 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
+  String _googleError(String code) {
+    switch (code) {
+      case 'account-exists-with-different-credential':
+        return 'This email already has a Taka Koi password. Sign in with email and password instead.';
+      case 'user-disabled':
+        return 'This account has been turned off.';
+      case 'invalid-credential':
+        return 'Google sign-in failed. Please try again, or sign in with email.';
+      case 'popup-blocked':
+      case 'web-storage-unsupported':
+      case 'operation-not-supported-in-this-environment':
+      case 'unauthorized-domain':
+      case 'network-request-failed':
+      case 'too-many-requests':
+        return _mapFirebaseError(code);
+      default:
+        return 'Google sign-in failed. Please try again, or sign in with email.';
+    }
+  }
+
   String _mapFirebaseError(String code) {
     switch (code) {
+      case 'popup-blocked':
+        return 'Your browser blocked the Google pop-up. Allow pop-ups for this site, or sign in with email.';
+      case 'web-storage-unsupported':
+      case 'operation-not-supported-in-this-environment':
+        return 'Google sign-in doesn\'t work here. Please sign in with email instead.';
+      case 'unauthorized-domain':
+        return 'This website isn\'t allowed to sign in yet. Please try again later.';
       case 'user-not-found':    return 'No account found with this email.';
       case 'wrong-password':    return 'Incorrect password.';
       case 'email-already-in-use': return 'This email is already registered.';
       case 'weak-password':     return 'Password must be at least 6 characters.';
       case 'invalid-email':     return 'Please enter a valid email address.';
       case 'network-request-failed': return 'No internet connection.';
+      case 'too-many-requests':      return 'Too many attempts. Wait a few minutes and try again.';
+      case 'invalid-credential':     return 'Incorrect email or password.';
       default:                  return 'Authentication failed. Please try again.';
     }
   }

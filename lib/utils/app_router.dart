@@ -7,6 +7,7 @@ import '../views/splash/splash_view.dart';
 import '../views/auth/login_view.dart';
 import '../views/auth/register_view.dart';
 import '../views/auth/profile_setup_view.dart';
+import '../views/auth/verify_email_view.dart';
 import '../views/group/group_hub_view.dart';
 import '../views/group/create_group_view.dart';
 import '../views/group/join_group_view.dart';
@@ -29,8 +30,8 @@ class AppRoutes {
   static const splash           = '/';
   static const login            = '/login';
   static const register         = '/register';
-  static const otpVerification  = '/otp-verification';
   static const passwordSetup    = '/password-setup';
+  static const verifyEmail      = '/verify-email';
   static const profileSetup     = '/profile-setup';
   static const groupHub         = '/group-hub';
   static const createGroup      = '/create-group';
@@ -65,10 +66,19 @@ GoRouter buildAppRouter(BuildContext context) {
 
       // Allow splash and auth screens freely
       if (loc == AppRoutes.splash) return null;
+
+      // Signed in but email not confirmed: the database refuses everything
+      // else, so keep them on the verify screen until it is.
+      if (auth.needsEmailVerification) {
+        return loc == AppRoutes.verifyEmail ? null : AppRoutes.verifyEmail;
+      }
+      if (loc == AppRoutes.verifyEmail) {
+        return isAuth ? AppRoutes.groupHub : AppRoutes.login;
+      }
+
       if (!isAuth &&
           loc != AppRoutes.login &&
           loc != AppRoutes.register &&
-          loc != AppRoutes.otpVerification &&
           loc != AppRoutes.passwordSetup &&
           loc != AppRoutes.profileSetup) {
         return AppRoutes.login;
@@ -82,7 +92,7 @@ GoRouter buildAppRouter(BuildContext context) {
 
       // If authenticated but NO active group and on any in-group screen → group-hub
       // This handles the "End Tour" case so users don't get a black screen.
-      const _shellRoutes = {
+      const shellRoutes = {
         AppRoutes.home,
         AppRoutes.debtOverview,
         AppRoutes.notifications,
@@ -91,11 +101,11 @@ GoRouter buildAppRouter(BuildContext context) {
         AppRoutes.expenseHistory,
         AppRoutes.expenseDetail,
         AppRoutes.logPayment,
-        AppRoutes.paymentReview,
         AppRoutes.adminDashboard,
-        AppRoutes.tourHistory,
+        // Payment review and past tours carry their own tour, so they also
+        // work for tours that have ended (settling up afterwards).
       };
-      if (isAuth && !group.hasActiveGroup && _shellRoutes.contains(loc)) {
+      if (isAuth && !group.hasActiveGroup && shellRoutes.contains(loc)) {
         return AppRoutes.groupHub;
       }
 
@@ -105,6 +115,7 @@ GoRouter buildAppRouter(BuildContext context) {
       GoRoute(path: AppRoutes.splash,         builder: (_, __) => const SplashView()),
       GoRoute(path: AppRoutes.login,          builder: (_, __) => const LoginView()),
       GoRoute(path: AppRoutes.register,       builder: (_, __) => const RegisterView()),
+      GoRoute(path: AppRoutes.verifyEmail,    builder: (_, __) => const VerifyEmailView()),
       GoRoute(path: AppRoutes.profileSetup,   builder: (_, __) => const ProfileSetupView()),
       GoRoute(path: AppRoutes.groupHub,       builder: (_, __) => const GroupHubView()),
       GoRoute(path: AppRoutes.createGroup,    builder: (_, __) => const CreateGroupView()),

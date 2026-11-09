@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../utils/app_colors.dart';
+import '../ui/ui.dart';
 
-/// A premium gradient primary action button with loading state.
+/// The app's main button.
+///
+/// * default: gold foil in dark mode, ink in light mode (the primary action)
+/// * [outlined]: quiet secondary action
+/// * [color] / [gradient]: a coloured action (e.g. green "Approve")
 class AppButton extends StatelessWidget {
   final String   label;
   final VoidCallback? onPressed;
@@ -26,8 +31,10 @@ class AppButton extends StatelessWidget {
     this.gradient,
     this.textColor,
     this.width,
-    this.height = 56,
+    this.height = 54,
   });
+
+  bool get _enabled => onPressed != null && !isLoading;
 
   void _handleTap() {
     HapticFeedback.lightImpact();
@@ -36,113 +43,95 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+
+    final Color fg;
+    final BoxDecoration deco;
     if (outlined) {
-      return SizedBox(
-        width:  width,
-        height: height,
-        child: OutlinedButton.icon(
-          onPressed: isLoading || onPressed == null ? null : _handleTap,
-          style: color != null ? OutlinedButton.styleFrom(
-            foregroundColor: color,
-            side: BorderSide(color: color!),
-          ) : null,
-          icon:   icon != null ? Icon(icon, size: 20) : const SizedBox.shrink(),
-          label:  isLoading
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-              : Text(label),
-        ),
+      fg = color ?? p.text;
+      deco = BoxDecoration(
+        color:        Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        border:       Border.all(color: color?.withValues(alpha: 0.55) ?? p.hairline, width: 1.3),
+      );
+    } else if (onPressed == null) {
+      fg = p.textFaint;
+      deco = BoxDecoration(color: p.surfaceSunken, borderRadius: BorderRadius.circular(16));
+    } else {
+      final fill  = gradient ?? (color == null && p.isDark ? AppColors.goldGradient : null);
+      final solid = color ?? AppColors.poshObsidian;
+      fg = textColor ??
+          (color != null || gradient != null
+              ? Colors.white
+              : (p.isDark ? AppColors.ink : Colors.white));
+      deco = BoxDecoration(
+        gradient:     fill,
+        color:        fill == null ? solid : null,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: (color ?? (p.isDark ? AppColors.goldDeep : AppColors.poshObsidian))
+                .withValues(alpha: p.isDark ? 0.22 : 0.16),
+            blurRadius: 14,
+            offset:     const Offset(0, 5),
+          ),
+        ],
       );
     }
 
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final content = isLoading
+        ? SizedBox(
+            width: 20, height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2.4, color: fg),
+          )
+        : Row(
+            mainAxisSize:      MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: 19, color: fg),
+                const SizedBox(width: 8),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: AppType.display, fontSize: 15,
+                    fontWeight: FontWeight.w600, letterSpacing: 0.1, color: fg,
+                  ),
+                ),
+              ),
+            ],
+          );
 
-    final effectiveGradient = gradient ??
-        (onPressed != null
-            ? (color != null
-                ? LinearGradient(colors: [color!, color!])
-                : (isDark
-                    ? const LinearGradient(
-                        colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : const LinearGradient(
-                        colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )))
-            : const LinearGradient(colors: [Color(0xFFBBBBBB), Color(0xFFCCCCCC)]));
-
-    final effectiveTextColor = textColor ??
-        (onPressed != null && color == null && gradient == null
-            ? (isDark ? const Color(0xFF14120E) : Colors.white)
-            : Colors.white);
-
-    return SizedBox(
-      width:  width,
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          gradient: effectiveGradient,
-          borderRadius: BorderRadius.circular(14),
-          boxShadow: onPressed != null
-              ? [
-                  BoxShadow(
-                    color: isDark
-                        ? const Color(0xFFC5951A).withOpacity(0.22)
-                        : Colors.black.withOpacity(0.18),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  )
-                ]
-              : [],
-        ),
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.transparent,
-            shadowColor:     Colors.transparent,
-            minimumSize:     Size(width ?? double.infinity, height),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-          ),
-          onPressed: isLoading || onPressed == null ? null : _handleTap,
-          icon: icon != null && !isLoading
-              ? Icon(icon, size: 20, color: effectiveTextColor)
-              : const SizedBox.shrink(),
-          label: isLoading
-              ? SizedBox(
-                  width: 22, height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2.5, color: effectiveTextColor),
-                )
-              : Text(label, style: TextStyle(color: effectiveTextColor, fontWeight: FontWeight.w700, fontSize: 16)),
+    return Semantics(
+      button:  true,
+      enabled: _enabled,
+      label:   label,
+      child: Pressable(
+        onTap:  _enabled ? _handleTap : null,
+        haptic: false,
+        child: AnimatedContainer(
+          duration:   const Duration(milliseconds: 180),
+          width:      width ?? double.infinity,
+          height:     height,
+          alignment:  Alignment.center,
+          padding:    const EdgeInsets.symmetric(horizontal: 18),
+          decoration: deco,
+          child:      content,
         ),
       ),
     );
   }
 }
 
-/// A small pill-shaped status badge.
+/// A small pill-shaped status badge (kept for older screens).
 class StatusBadge extends StatelessWidget {
   final String status; // 'pending' | 'approved' | 'rejected'
 
   const StatusBadge({super.key, required this.status});
 
   @override
-  Widget build(BuildContext context) {
-    final Color bg;
-    final Color fg;
-    final String label;
-    switch (status) {
-      case 'approved':
-        bg = AppColors.approved.withOpacity(0.15); fg = AppColors.approved; label = 'Approved'; break;
-      case 'rejected':
-        bg = AppColors.rejected.withOpacity(0.15); fg = AppColors.rejected; label = 'Rejected'; break;
-      default:
-        bg = AppColors.pending.withOpacity(0.15);  fg = AppColors.pending;  label = 'Pending';
-    }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(100)),
-      child: Text(label, style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600)),
-    );
-  }
+  Widget build(BuildContext context) => StatusChip.status(status);
 }

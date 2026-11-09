@@ -4,12 +4,15 @@ import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/debt_controller.dart';
 import '../../controllers/group_controller.dart';
-import '../../utils/app_colors.dart';
+import '../../utils/display_helpers.dart';
+import '../../utils/money.dart';
 import '../../widgets/common/app_button.dart';
-import '../../widgets/common/app_text_field.dart';
-import '../../widgets/common/loading_widget.dart';
+import '../../widgets/common/avatar_widget.dart';
+import '../../widgets/ui/ui.dart';
+import '../expenses/home/bkash_section.dart';
 
-/// Log a payment toward a specific debt.
+/// Pay toward one debt: pay them (bKash or cash), then log it here so they
+/// can confirm it.
 class LogPaymentView extends StatefulWidget {
   final String debtId;
   const LogPaymentView({super.key, required this.debtId});
@@ -19,28 +22,45 @@ class LogPaymentView extends StatefulWidget {
 }
 
 class _LogPaymentViewState extends State<LogPaymentView> {
-  final _formKey    = GlobalKey<FormState>();
   final _amountCtrl = TextEditingController();
-  bool _submitting  = false;
+  bool    _submitting = false;
+  String? _error;
 
   @override
-  void dispose() { _amountCtrl.dispose(); super.dispose(); }
+  void dispose() {
+    _amountCtrl.dispose();
+    super.dispose();
+  }
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _submitting = true);
+  Future<void> _submit(int availableCents, String symbol) async {
+    final cents = Money.parseCents(_amountCtrl.text);
+    if (cents == null || cents <= 0) {
+      setState(() => _error = 'Enter how much you paid.');
+      return;
+    }
+    if (cents > availableCents) {
+      setState(() => _error = 'That\'s more than you owe. The most is ${Money.display(Money.fromCents(availableCents), symbol)}.');
+      return;
+    }
+    setState(() {
+      _submitting = true;
+      _error      = null;
+    });
 
-    final auth       = context.read<AuthController>();
-    final groupCtrl  = context.read<GroupController>();
-    final debtCtrl   = context.read<DebtController>();
-    final group      = groupCtrl.activeGroup!;
-    final user       = auth.user!;
+    final auth     = context.read<AuthController>();
+    final group    = context.read<GroupController>().activeGroup!;
+    final debtCtrl = context.read<DebtController>();
+    final user     = auth.user!;
 
-    // Find the debt
-    final debt = debtCtrl.iOwe.firstWhere(
-      (d) => d.debtId == widget.debtId,
-      orElse: () => debtCtrl.iOwe.first,
-    );
+    // Only ever pay the debt this screen was opened for, never a fallback.
+    final debt = debtCtrl.openDebtById(widget.debtId);
+    if (debt == null) {
+      setState(() {
+        _submitting = false;
+        _error      = 'This debt is already settled or no longer exists.';
+      });
+      return;
+    }
 
     final ok = await debtCtrl.logPayment(
       groupId:        group.groupId,
@@ -49,328 +69,179 @@ class _LogPaymentViewState extends State<LogPaymentView> {
       toUserId:       debt.toUserId,
       toUserName:     debt.toUserName,
       debtId:         debt.debtId,
-      amount:         double.tryParse(_amountCtrl.text.trim()) ?? 0,
+      amount:         Money.fromCents(cents),
       currencySymbol: group.currencySymbol,
       bkashNumber:    null,
     );
 
-    setState(() => _submitting = false);
     if (!mounted) return;
+    setState(() => _submitting = false);
     if (ok) {
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Payment logged! Waiting for receiver to confirm.'), backgroundColor: AppColors.success),
-      );
+      messenger.showSnackBar(SnackBar(
+        content: Text(debtCtrl.savedOffline
+            ? 'Saved on this phone. It syncs once you\'re online, then ${firstName(debt.toUserName)} can confirm it.'
+            : 'Logged. ${firstName(debt.toUserName)} will confirm they got it.'),
+      ));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to log payment.'), backgroundColor: AppColors.error),
-      );
+      setState(() => _error = debtCtrl.lastError ?? 'Couldn\'t log the payment. Try again.');
     }
+  }
+
+  void _fill(int cents) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _amountCtrl.text = Money.format(cents);
+      _amountCtrl.selection = TextSelection.collapsed(offset: _amountCtrl.text.length);
+      _error = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final debtCtrl  = context.watch<DebtController>();
     final groupCtrl = context.watch<GroupController>();
+    final auth      = context.watch<AuthController>();
     final group     = groupCtrl.activeGroup;
     final symbol    = group?.currencySymbol ?? '৳';
+    final p         = context.palette;
+    final t         = Theme.of(context).textTheme;
+    final debt      = debtCtrl.openDebtById(widget.debtId);
 
-    final debt = debtCtrl.iOwe.where((d) => d.debtId == widget.debtId).firstOrNull
-               ?? debtCtrl.iOwe.firstOrNull;
+    if (debt == null || group == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(32),
+            child: InfoBanner('This debt is already settled or no longer exists.',
+                icon: Icons.verified_rounded, tone: ChipTone.positive),
+          ),
+        ),
+      );
+    }
 
-    if (debt == null) return Scaffold(appBar: AppBar(title: const Text('Log Payment')), body: const Center(child: AppLoader()));
-
-    final isDark    = Theme.of(context).brightness == Brightness.dark;
-    final accentGold = isDark ? const Color(0xFFE5B83B) : const Color(0xFF9E6E00);
+    // What can still be logged: the debt minus payments already waiting for
+    // the receiver to confirm, so the same money can't be paid twice.
+    final pendingCents   = debtCtrl.pendingCentsFor(debt.debtId);
+    final availableCents = debtCtrl.availableCentsFor(debt);
+    final name           = firstName(debt.toUserName);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Log Payment')),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // ── Midnight Obsidian & Burnished Gold Debt Summary Card ────────
-              _DebtSummaryCard(
-                toUserName:      debt.toUserName,
-                originalAmount:  debt.originalAmount,
-                remainingAmount: debt.remainingAmount,
-                symbol:          symbol,
-                isDark:          isDark,
-              ),
-              const SizedBox(height: 28),
-
-              // Amount field
-              AppTextField(
-                label:        'Payment Amount',
-                hint:         '0.00',
-                controller:   _amountCtrl,
-                prefixIcon:   Icons.payments_rounded,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                validator: (v) {
-                  final val = double.tryParse(v ?? '');
-                  if (val == null || val <= 0) return 'Enter a valid amount.';
-                  if (val > debt.remainingAmount) return 'Cannot exceed remaining debt ($symbol${debt.remainingAmount.toStringAsFixed(2)}).';
-                  return null;
-                },
-              ),
-              const SizedBox(height: 10),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    borderRadius: BorderRadius.circular(12),
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      _amountCtrl.text = debt.remainingAmount.toStringAsFixed(2);
-                      _formKey.currentState?.validate();
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: accentGold.withOpacity(isDark ? 0.12 : 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: accentGold.withOpacity(isDark ? 0.32 : 0.25),
-                          width: 1.2,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.bolt_rounded, size: 18, color: accentGold),
-                          const SizedBox(width: 6),
-                          Text(
-                            '1-Tap Settle Full: ',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          Text(
-                            '$symbol${debt.remainingAmount.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              color: accentGold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              AppButton(
-                label:     'Submit Payment',
-                icon:      Icons.send_rounded,
-                isLoading: _submitting,
-                gradient:  isDark
-                    ? const LinearGradient(
-                        colors: [Color(0xFFE5B83B), Color(0xFFC5951A)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : const LinearGradient(
-                        colors: [Color(0xFF1C1917), Color(0xFF2C2724)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                textColor: isDark ? const Color(0xFF14120E) : Colors.white,
-                onPressed: _submit,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'The receiver must approve this payment to mark your debt as reduced.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-              ),
-            ],
+      appBar: AppBar(title: Text('Pay $name'), centerTitle: true),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: AppButton(
+            label:     'Log payment',
+            icon:      Icons.check_rounded,
+            isLoading: _submitting,
+            onPressed: availableCents > 0 ? () => _submit(availableCents, symbol) : null,
           ),
         ),
       ),
-    );
-  }
-}
-
-class _DebtSummaryCard extends StatelessWidget {
-  final String toUserName;
-  final double originalAmount;
-  final double remainingAmount;
-  final String symbol;
-  final bool isDark;
-
-  const _DebtSummaryCard({
-    required this.toUserName,
-    required this.originalAmount,
-    required this.remainingAmount,
-    required this.symbol,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1F1D19) : Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: isDark
-              ? const Color(0xFFD4A017).withOpacity(0.26)
-              : const Color(0xFFE2DBCB),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.40) : Colors.black.withOpacity(0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'PAYING TO',
-                style: TextStyle(
-                  color: isDark ? const Color(0xFFB0A880) : const Color(0xFF7A7468),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFFD4A017).withOpacity(0.14)
-                      : const Color(0xFF9E6E00).withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+          AppCard(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            child: Column(
+              children: [
+                AvatarWidget(name: debt.toUserName, imageUrl: group.members[debt.toUserId]?.avatarUrl, size: 56),
+                const SizedBox(height: 10),
+                Text('You owe $name', style: t.bodyMedium?.copyWith(color: p.textMuted)),
+                const SizedBox(height: 2),
+                MoneyText(debt.remainingAmount, symbol: symbol, size: 30, color: p.negative),
+                if (debt.remainingCents < Money.toCents(debt.originalAmount))
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('of ${Money.display(debt.originalAmount, symbol)} · part already paid', style: t.bodySmall),
+                  ),
+                const SizedBox(height: 18),
+                Divider(height: 1, color: p.hairline),
+                const SizedBox(height: 14),
+                Text('HOW MUCH DID YOU PAY?', style: AppType.overline(p.textMuted)),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.shield_outlined,
-                      size: 13,
-                      color: isDark ? const Color(0xFFE5B83B) : const Color(0xFF9E6E00),
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Debt Settlement',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? const Color(0xFFE5B83B) : const Color(0xFF9E6E00),
+                    Text(symbol, style: AppType.money(26, color: p.textMuted)),
+                    const SizedBox(width: 6),
+                    IntrinsicWidth(
+                      child: TextField(
+                        controller:      _amountCtrl,
+                        autofocus:       true,
+                        textAlign:       TextAlign.center,
+                        keyboardType:    const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+                        style:           AppType.money(40, color: p.text),
+                        onChanged:       (_) => setState(() => _error = null),
+                        decoration: InputDecoration(
+                          hintText:       '0',
+                          hintStyle:      AppType.money(40, color: p.textFaint),
+                          filled:         false,
+                          border:         InputBorder.none,
+                          enabledBorder:  InputBorder.none,
+                          focusedBorder:  InputBorder.none,
+                          isDense:        true,
+                          contentPadding: EdgeInsets.zero,
+                          constraints:    const BoxConstraints(minWidth: 50),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            toUserName,
-            style: TextStyle(
-              color: isDark ? const Color(0xFFF5F0DC) : const Color(0xFF1C1917),
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.2,
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Text(_error!, textAlign: TextAlign.center, style: t.bodySmall?.copyWith(color: p.negative)),
+                ],
+                const SizedBox(height: 14),
+                if (availableCents > 0)
+                  Wrap(
+                    spacing: 8,
+                    alignment: WrapAlignment.center,
+                    children: [
+                      Pressable(
+                        onTap: () => _fill(availableCents),
+                        child: StatusChip('Pay it all · ${Money.displayCompact(Money.fromCents(availableCents), symbol)}',
+                            tone: ChipTone.accent, icon: Icons.bolt_rounded),
+                      ),
+                      if (availableCents >= 200)
+                        Pressable(
+                          onTap: () => _fill(availableCents ~/ 2),
+                          child: StatusChip('Half · ${Money.displayCompact(Money.fromCents(availableCents ~/ 2), symbol)}'),
+                        ),
+                    ],
+                  ),
+              ],
             ),
           ),
-          const SizedBox(height: 18),
-          Row(
-            children: [
-              Expanded(
-                child: _InfoChip(
-                  label: 'Original Debt',
-                  value: '$symbol${originalAmount.toStringAsFixed(2)}',
-                  isHighlight: false,
-                  isDark: isDark,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _InfoChip(
-                  label: 'Remaining Debt',
-                  value: '$symbol${remainingAmount.toStringAsFixed(2)}',
-                  isHighlight: true,
-                  isDark: isDark,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InfoChip extends StatelessWidget {
-  final String label;
-  final String value;
-  final bool isHighlight;
-  final bool isDark;
-
-  const _InfoChip({
-    required this.label,
-    required this.value,
-    this.isHighlight = false,
-    this.isDark = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final bgColor = isDark
-        ? (isHighlight ? const Color(0xFF2C281F) : const Color(0xFF24221C))
-        : (isHighlight ? const Color(0xFFF7F3E8) : const Color(0xFFF5F2EB));
-
-    final borderColor = isDark
-        ? (isHighlight ? const Color(0xFFD4A017).withOpacity(0.32) : Colors.white.withOpacity(0.08))
-        : (isHighlight ? const Color(0xFFC59B27).withOpacity(0.38) : const Color(0xFFE2DBCB));
-
-    final valueColor = isHighlight
-        ? (isDark ? const Color(0xFFFFD700) : const Color(0xFF9E6E00))
-        : (isDark ? const Color(0xFFDCD6C2) : const Color(0xFF1C1917));
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: isDark ? const Color(0xFF9E9675) : const Color(0xFF7A7468),
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+          if (pendingCents > 0) ...[
+            const SizedBox(height: 12),
+            InfoBanner(
+              availableCents > 0
+                  ? '${Money.displayCompact(Money.fromCents(pendingCents), symbol)} you logged earlier is waiting for $name to confirm, so you can log up to ${Money.displayCompact(Money.fromCents(availableCents), symbol)} more.'
+                  : 'Your payments already cover this. Waiting for $name to confirm them.',
+              icon: Icons.schedule_rounded,
+              tone: ChipTone.pending,
             ),
+          ],
+          const SizedBox(height: 22),
+          const SectionHeader('Paying by bKash?'),
+          BkashSection(
+            homeCtx:       context,
+            requesterId:   auth.user?.uid ?? '',
+            requesterName: auth.user?.name ?? '',
+            targetId:      debt.toUserId,
+            targetName:    debt.toUserName,
+            groupCtrl:     groupCtrl,
           ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              color: valueColor,
-              fontWeight: FontWeight.w800,
-              fontSize: 15,
-            ),
+          const SizedBox(height: 14),
+          const InfoBanner(
+            'Taka Koi doesn\'t move money. Pay by bKash or cash first, then log it here. '
+            'The debt goes down once they confirm they got it.',
+            icon: Icons.info_outline_rounded,
           ),
         ],
       ),

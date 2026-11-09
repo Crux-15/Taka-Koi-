@@ -58,6 +58,9 @@ class GroupModel {
   final DateTime? inactivatedAt;
   final String? inactivatedBy;   // 'admin' | 'system'
   final Map<String, GroupMember> members; // keyed by userId
+  /// Plain list of member ids, kept in step with [members] so tour history
+  /// can be queried by member (security rules only let you list your own groups).
+  final List<String> memberIds;
 
   const GroupModel({
     required this.groupId,
@@ -74,12 +77,17 @@ class GroupModel {
     this.inactivatedAt,
     this.inactivatedBy,
     required this.members,
+    this.memberIds = const [],
   });
 
   bool get isActive   => status == 'active';
   bool get isInactive => status == 'inactive';
 
   bool get isCodeExpired => DateTime.now().isAfter(groupCodeExpiresAt);
+
+  /// False for groups created before memberIds existed (or if it drifted).
+  bool get memberIdsInSync =>
+      memberIds.length == members.length && members.keys.every(memberIds.contains);
 
   factory GroupModel.fromDoc(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
@@ -103,6 +111,7 @@ class GroupModel {
       inactivatedAt:      (data['inactivatedAt']      as Timestamp?)?.toDate(),
       inactivatedBy:      data['inactivatedBy']       as String?,
       members:            members,
+      memberIds:          (data['memberIds'] as List?)?.whereType<String>().toList() ?? const [],
     );
   }
 
@@ -120,6 +129,7 @@ class GroupModel {
     'inactivatedAt':      inactivatedAt != null ? Timestamp.fromDate(inactivatedAt!) : null,
     'inactivatedBy':      inactivatedBy,
     'members':            members.map((k, v) => MapEntry(k, v.toMap())),
+    'memberIds':          members.keys.toList(),
   };
 
   GroupModel copyWith({
@@ -147,49 +157,7 @@ class GroupModel {
       inactivatedAt:      inactivatedAt      ?? this.inactivatedAt,
       inactivatedBy:      inactivatedBy      ?? this.inactivatedBy,
       members:            members            ?? this.members,
+      memberIds:          members?.keys.toList() ?? memberIds,
     );
   }
-}
-
-/// Join request from a user wanting to join a group.
-class JoinRequest {
-  final String requestId;
-  final String userId;
-  final String userName;
-  final String avatarUrl;
-  final String status;     // 'pending' | 'approved' | 'rejected'
-  final DateTime requestedAt;
-  final DateTime? resolvedAt;
-
-  const JoinRequest({
-    required this.requestId,
-    required this.userId,
-    required this.userName,
-    required this.avatarUrl,
-    required this.status,
-    required this.requestedAt,
-    this.resolvedAt,
-  });
-
-  factory JoinRequest.fromDoc(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    return JoinRequest(
-      requestId:   doc.id,
-      userId:      data['userId']      as String? ?? '',
-      userName:    data['userName']    as String? ?? '',
-      avatarUrl:   data['avatarUrl']   as String? ?? '',
-      status:      data['status']      as String? ?? 'pending',
-      requestedAt: (data['requestedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      resolvedAt:  (data['resolvedAt']  as Timestamp?)?.toDate(),
-    );
-  }
-
-  Map<String, dynamic> toMap() => {
-    'userId':      userId,
-    'userName':    userName,
-    'avatarUrl':   avatarUrl,
-    'status':      status,
-    'requestedAt': Timestamp.fromDate(requestedAt),
-    'resolvedAt':  resolvedAt != null ? Timestamp.fromDate(resolvedAt!) : null,
-  };
 }

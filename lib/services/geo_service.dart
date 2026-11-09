@@ -1,6 +1,7 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import '../models/expense_model.dart';
+import '../utils/app_log.dart';
 
 /// Provides GPS location capture and reverse geocoding.
 class GeoService {
@@ -38,7 +39,8 @@ class GeoService {
         if (p.administrativeArea?.isNotEmpty == true) p.administrativeArea,
       ];
       return parts.join(', ');
-    } catch (_) {
+    } catch (e, s) {
+      logError('getAddressFromLatLng', e, s);
       return null;
     }
   }

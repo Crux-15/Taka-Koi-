@@ -7,6 +7,8 @@ import '../../controllers/group_controller.dart';
 import '../../controllers/notification_controller.dart';
 import '../../utils/app_constants.dart';
 import '../../utils/app_router.dart';
+import '../../utils/app_colors.dart';
+import '../../widgets/ui/ui.dart';
 
 /// Animated splash screen — auto-navigates based on auth state.
 /// Theme: black background matching the Taka Koi! logo palette.
@@ -24,9 +26,9 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
   late Animation<double>   _slideUp;
 
   // Brand colours extracted from the Taka Koi! logo
-  static const Color _bgColor     = Color(0xFF0A0A0A); // near-black
-  static const Color _yellow      = Color(0xFFFFD700); // bold yellow
-  static const Color _yellowLight = Color(0xFFFFF176); // soft yellow for tagline
+  static const Color _bgColor     = AppColors.splashBlack; // near-black
+  static const Color _yellow      = AppColors.primary; // bold yellow
+  static const Color _yellowLight = AppColors.yellowPale; // soft yellow for tagline
 
   @override
   void initState() {
@@ -39,8 +41,8 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
 
     _animCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000));
     _fadeIn  = CurvedAnimation(parent: _animCtrl, curve: Curves.easeOut);
-    _scaleIn = Tween<double>(begin: 0.75, end: 1.0).animate(
-      CurvedAnimation(parent: _animCtrl, curve: Curves.elasticOut),
+    _scaleIn = Tween<double>(begin: 0.92, end: 1.0).animate(
+      CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic),
     );
     _slideUp = Tween<double>(begin: 30, end: 0).animate(
       CurvedAnimation(parent: _animCtrl, curve: Curves.easeOutCubic),
@@ -65,6 +67,10 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
     );
     if (!mounted) return;
 
+    if (auth.needsEmailVerification) {
+      context.go(AppRoutes.verifyEmail);
+      return;
+    }
     if (!auth.isAuthenticated) {
       context.go(AppRoutes.login);
       return;
@@ -95,81 +101,90 @@ class _SplashViewState extends State<SplashView> with SingleTickerProviderStateM
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
+    final logo = (size.width * 0.42).clamp(120.0, 200.0);
 
     return Scaffold(
       backgroundColor: _bgColor,
-      body: SafeArea(
-        child: Center(
-          child: FadeTransition(
-            opacity: _fadeIn,
-            child: AnimatedBuilder(
-              animation: _animCtrl,
-              builder: (_, __) => Transform.translate(
-                offset: Offset(0, _slideUp.value),
-                child: ScaleTransition(
-                  scale: _scaleIn,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // ── Logo image ──────────────────────────────────────
-                      SizedBox(
-                        width:  size.width * 0.68,
-                        height: size.width * 0.68,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(32),
-                          child: Image.asset(
-                            'assets/images/taka_koi_logo.jpg',
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(
-                              Icons.travel_explore_rounded,
-                              size:  96,
-                              color: _yellow,
+      body: Stack(
+        children: [
+          // Soft gold glow behind the logo
+          Center(
+            child: Container(
+              width: logo * 2.6, height: logo * 2.6,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(colors: [Color(0x33E2B044), Color(0x00E2B044)]),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: FadeTransition(
+                opacity: _fadeIn,
+                child: AnimatedBuilder(
+                  animation: _animCtrl,
+                  builder: (_, __) => Transform.translate(
+                    offset: Offset(0, _slideUp.value),
+                    child: ScaleTransition(
+                      scale: _scaleIn,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              gradient: AppColors.goldGradient,
+                              borderRadius: BorderRadius.circular(logo * 0.26),
+                              boxShadow: [
+                                BoxShadow(color: AppColors.goldDeep.withValues(alpha: 0.35), blurRadius: 40, offset: const Offset(0, 16)),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(logo * 0.26 - 3),
+                              child: Image.asset(
+                                'assets/images/taka_koi_logo.jpg',
+                                width: logo, height: logo, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => SizedBox(
+                                  width: logo, height: logo,
+                                  child: const Icon(Icons.account_balance_wallet_rounded, size: 72, color: _yellow),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          const SizedBox(height: 30),
+                          const Text(
+                            AppConstants.appName,
+                            style: TextStyle(
+                              fontFamily:    AppType.display,
+                              color:         Color(0xFFF7F1E3),
+                              fontSize:      34,
+                              fontWeight:    FontWeight.w700,
+                              letterSpacing: -0.8,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(AppConstants.appTagline.toUpperCase(), style: AppType.overline(_yellowLight.withValues(alpha: 0.75))),
+                          const SizedBox(height: 44),
+                          SizedBox(
+                            width: 120,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(100),
+                              child: LinearProgressIndicator(
+                                minHeight:       3,
+                                color:           _yellow,
+                                backgroundColor: _yellow.withValues(alpha: 0.12),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 28),
-
-                      // ── App name ─────────────────────────────────────────
-                      Text(
-                        AppConstants.appName,
-                        style: const TextStyle(
-                          color:         _yellow,
-                          fontSize:      36,
-                          fontWeight:    FontWeight.w900,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // ── Tagline ───────────────────────────────────────────
-                      Text(
-                        AppConstants.appTagline,
-                        style: const TextStyle(
-                          color:         _yellowLight,
-                          fontSize:      14,
-                          fontWeight:    FontWeight.w400,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 52),
-
-                      // ── Loading spinner ───────────────────────────────────
-                      SizedBox(
-                        width: 26, height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth:  2.5,
-                          color:        _yellow.withOpacity(0.7),
-                          backgroundColor: _yellow.withOpacity(0.15),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

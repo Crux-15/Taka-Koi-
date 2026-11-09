@@ -1,11 +1,9 @@
-import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/group_controller.dart';
 import '../../controllers/theme_controller.dart';
@@ -17,6 +15,8 @@ import '../../widgets/common/app_text_field.dart';
 import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/loading_widget.dart';
 import '../../widgets/common/theme_switch_widget.dart';
+import 'widgets/group_code_tile.dart';
+import '../../widgets/ui/ui.dart';
 
 /// Profile screen — view & edit profile, group management, theme, sign out.
 class ProfileView extends StatefulWidget {
@@ -28,7 +28,7 @@ class ProfileView extends StatefulWidget {
 class _ProfileViewState extends State<ProfileView> {
   final _nameCtrl   = TextEditingController();
   final _bkashCtrl  = TextEditingController();
-  File? _avatarFile;
+  Uint8List? _avatarFile;
   bool  _editing    = false;
   bool  _saving     = false;
   final _picker     = ImagePicker();
@@ -52,23 +52,43 @@ class _ProfileViewState extends State<ProfileView> {
 
   Future<void> _pickAvatar() async {
     final picked = await _picker.pickImage(source: ImageSource.gallery, imageQuality: 75, maxWidth: 512);
-    if (picked != null) setState(() { _avatarFile = File(picked.path); _editing = true; });
+    if (picked == null) return;
+    final bytes = await picked.readAsBytes();
+    if (mounted) setState(() { _avatarFile = bytes; _editing = true; });
   }
 
   Future<void> _saveProfile() async {
+    final bkash = _bkashCtrl.text.trim();
+    if (_nameCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter your name.')));
+      return;
+    }
+    if (bkash.isNotEmpty && !RegExp(r'^01[3-9]\d{8}$').hasMatch(bkash)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('That bKash number doesn\'t look right. Use 11 digits, like 017XXXXXXXX.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
-    final ok = await context.read<AuthController>().updateProfile(
+    final auth = context.read<AuthController>();
+    final ok = await auth.updateProfile(
       name:        _nameCtrl.text.trim(),
       bkashNumber: _bkashCtrl.text.trim(),
       avatarFile:  _avatarFile,
     );
-    setState(() { _saving = false; _editing = false; _avatarFile = null; });
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content:         Text(ok ? 'Profile updated!' : 'Update failed.'),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ));
-    }
+    if (!mounted) return;
+    setState(() {
+      _saving = false;
+      // On failure keep the form open with what they typed, so they can retry.
+      if (ok) {
+        _editing    = false;
+        _avatarFile = null;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content:         Text(ok ? 'Profile updated!' : auth.errorMessage ?? 'Update failed.'),
+      backgroundColor: ok ? AppColors.success : AppColors.error,
+    ));
   }
 
   Future<void> _signOut() async {
@@ -112,162 +132,217 @@ class _ProfileViewState extends State<ProfileView> {
     final user      = auth.user;
     final group     = groupCtrl.activeGroup;
     final isAdmin   = group != null && group.adminId == user?.uid;
-    final scheme    = Theme.of(context).colorScheme;
+    final p         = context.palette;
+    final t         = Theme.of(context).textTheme;
 
     if (user == null) return const Center(child: AppLoader());
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profile'),
-        actions: [const ThemeSwitchWidget(), const SizedBox(width: 8)],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-
-            // ── Avatar ────────────────────────────────────────────────────
-            Center(
-              child: Stack(
-                children: [
-                  _avatarFile != null
-                      ? ClipOval(child: Image.file(_avatarFile!, width: 100, height: 100, fit: BoxFit.cover))
-                      : AvatarWidget(imageUrl: user.avatarUrl, name: user.name, size: 100, showBorder: true, onTap: _pickAvatar),
-                  Positioned(
-                    bottom: 0, right: 0,
-                    child: GestureDetector(
-                      onTap: _pickAvatar,
-                      child: Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color:       scheme.surface,
-                          shape:       BoxShape.circle,
-                          border: Border.all(color: scheme.primary, width: 1.5),
-                        ),
-                        child: Icon(Icons.camera_alt_rounded, size: 18, color: scheme.primary),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Center(child: Text(user.email, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13))),
-            const SizedBox(height: 24),
-
-            // ── Edit Fields ───────────────────────────────────────────────
-            _SectionCard(
-              title: 'Personal Info',
-              child: Column(
-                children: [
-                  AppTextField(
-                    label:      'Full Name',
-                    controller: _nameCtrl,
-                    prefixIcon: Icons.badge_rounded,
-                    onChanged:  (_) => setState(() => _editing = true),
-                  ),
-                  const SizedBox(height: 14),
-                  AppTextField(
-                    label:        'Bkash Number',
-                    hint:         '01XXXXXXXXX',
-                    controller:   _bkashCtrl,
-                    prefixIcon:   Icons.mobile_friendly_rounded,
-                    keyboardType: TextInputType.phone,
-                    onChanged:    (_) => setState(() => _editing = true),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Save button (only when editing)
-            if (_editing)
-              AppButton(
-                label:     'Save Changes',
-                icon:      Icons.save_rounded,
-                isLoading: _saving,
-                onPressed: _saveProfile,
-              ),
-            const SizedBox(height: 16),
-
-            // ── Group / Admin Section ─────────────────────────────────────
-            if (group != null) ...[
-              _SectionCard(
-                title: 'Active Group: ${group.name}',
-                child: Column(
+      body: CustomScrollView(
+        physics: const BouncingScrollPhysics(),
+        slivers: [
+          SliverSafeArea(
+            bottom: false,
+            sliver: SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              sliver: SliverToBoxAdapter(
+                child: Row(
                   children: [
-                    // Group Code (admin only)
-                    if (isAdmin) ...[
-                      _GroupCodeTile(group: group, groupCtrl: groupCtrl),
-                      const Divider(height: 20),
-                    ],
-
-                    // Transfer Admin (admin only, only if other members exist)
-                    if (isAdmin && group.members.length > 1)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.admin_panel_settings_rounded, color: AppColors.tertiary),
-                        title:   const Text('Transfer Admin Role'),
-                        subtitle:const Text('Hand over admin to another member'),
-                        onTap:   () => _showTransferAdminDialog(context, groupCtrl, group),
-                      ),
-
-                    // End Tour (admin only)
-                    if (isAdmin)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.timer_off_rounded, color: AppColors.error),
-                        title:   const Text('End This Tour', style: TextStyle(color: AppColors.error)),
-                        subtitle:const Text('Mark this group as inactive'),
-                        onTap:   () => _confirmDeactivate(context, groupCtrl, group),
-                      ),
-
-                    // Leave Group (members only — not shown to admin)
-                    if (!isAdmin)
-                      ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.exit_to_app_rounded, color: AppColors.error),
-                        title:   const Text('Leave Group', style: TextStyle(color: AppColors.error)),
-                        subtitle:const Text('Request to leave — requires admin approval'),
-                        onTap:   () => _confirmLeaveGroup(context, groupCtrl, group, user),
-                      ),
+                    Expanded(child: Text('Profile', style: t.headlineMedium)),
+                    const ThemeSwitchWidget(),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-            ],
+            ),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+            sliver: SliverList.list(
+              children: [
+                // ── Identity ────────────────────────────────────────────────
+                AppCard(
+                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 22),
+                  child: Column(
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          _avatarFile != null
+                              ? ClipOval(child: Image.memory(_avatarFile!, width: 96, height: 96, fit: BoxFit.cover))
+                              : AvatarWidget(imageUrl: user.avatarUrl, name: user.name, size: 96, showBorder: true, onTap: _pickAvatar),
+                          Positioned(
+                            bottom: 2, right: 2,
+                            child: Pressable(
+                              onTap: _pickAvatar,
+                              child: Container(
+                                width: 34, height: 34,
+                                decoration: BoxDecoration(
+                                  color:  p.isDark ? AppColors.primary : AppColors.poshObsidian,
+                                  shape:  BoxShape.circle,
+                                  border: Border.all(color: p.surface, width: 3),
+                                ),
+                                child: Icon(Icons.photo_camera_rounded, size: 16,
+                                    color: p.isDark ? AppColors.ink : Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text(user.name, style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+                      const SizedBox(height: 4),
+                      Text(user.email, style: t.bodyMedium?.copyWith(color: p.textMuted)),
+                      if (group != null) ...[
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          alignment: WrapAlignment.center,
+                          children: [
+                            StatusChip(group.name, icon: Icons.luggage_rounded),
+                            if (isAdmin) const StatusChip('Tour admin', tone: ChipTone.accent, icon: Icons.verified_rounded),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
 
-            // ── Appearance ────────────────────────────────────────────────
-            _SectionCard(
-              title: 'Appearance',
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(children: [
-                    Icon(themeCtrl.resolveIsDark(context) ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-                        color: scheme.primary),
-                    const SizedBox(width: 12),
-                    Text(themeCtrl.resolveIsDark(context) ? 'Dark Mode' : 'Light Mode',
-                        style: const TextStyle(fontWeight: FontWeight.w500)),
-                  ]),
-                  ThemeSwitchWidget(),
+                // ── Your details ────────────────────────────────────────────
+                const SizedBox(height: 24),
+                const SectionHeader('Your details'),
+                AppCard(
+                  child: Column(
+                    children: [
+                      AppTextField(
+                        label:      'Full name',
+                        controller: _nameCtrl,
+                        prefixIcon: Icons.badge_rounded,
+                        onChanged:  (_) => setState(() => _editing = true),
+                      ),
+                      const SizedBox(height: 12),
+                      AppTextField(
+                        label:        'bKash number',
+                        hint:         '01XXXXXXXXX',
+                        controller:   _bkashCtrl,
+                        prefixIcon:   Icons.account_balance_wallet_rounded,
+                        keyboardType: TextInputType.phone,
+                        onChanged:    (_) => setState(() => _editing = true),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(Icons.lock_rounded, size: 14, color: p.textFaint),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text('Only people you agree to share it with can see your bKash number.',
+                                style: t.bodySmall),
+                          ),
+                        ],
+                      ),
+                      AnimatedSize(
+                        duration: const Duration(milliseconds: 220),
+                        curve:    Curves.easeOutCubic,
+                        child: _editing
+                            ? Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: AppButton(
+                                  label:     'Save changes',
+                                  icon:      Icons.check_rounded,
+                                  isLoading: _saving,
+                                  onPressed: _saveProfile,
+                                ),
+                              )
+                            : const SizedBox(width: double.infinity),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // ── Tour ────────────────────────────────────────────────────
+                if (group != null) ...[
+                  const SizedBox(height: 24),
+                  SectionHeader(isAdmin ? 'Manage tour' : 'This tour'),
+                  AppCard(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+                    child: Column(
+                      children: [
+                        if (isAdmin) ...[
+                          GroupCodeTile(group: group, groupCtrl: groupCtrl),
+                          const SizedBox(height: 8),
+                          Divider(height: 1, color: p.hairline),
+                        ],
+                        if (isAdmin && group.members.length > 1)
+                          _SettingsRow(
+                            icon:     Icons.admin_panel_settings_rounded,
+                            title:    'Hand over admin',
+                            subtitle: 'Make another member the admin',
+                            onTap:    () => _showTransferAdminDialog(context, groupCtrl, group),
+                          ),
+                        if (isAdmin)
+                          _SettingsRow(
+                            icon:     Icons.flag_rounded,
+                            title:    'End this tour',
+                            subtitle: 'Moves it to everyone\'s history',
+                            danger:   true,
+                            onTap:    () => _confirmDeactivate(context, groupCtrl, group),
+                          ),
+                        if (!isAdmin)
+                          _SettingsRow(
+                            icon:     Icons.logout_rounded,
+                            title:    'Leave this tour',
+                            subtitle: 'The admin approves your request',
+                            danger:   true,
+                            onTap:    () => _confirmLeaveGroup(context, groupCtrl, group, user),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
-              ),
-            ),
-            const SizedBox(height: 16),
 
-            // ── Sign Out ──────────────────────────────────────────────────
-            AppButton(
-              label:    'Sign Out',
-              icon:     Icons.logout_rounded,
-              outlined: true,
-              color:    AppColors.error,
-              onPressed: _signOut,
+                // ── Preferences & account ───────────────────────────────────
+                const SizedBox(height: 24),
+                const SectionHeader('Preferences'),
+                AppCard(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Column(
+                    children: [
+                      _SettingsRow(
+                        icon:     themeCtrl.resolveIsDark(context) ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                        title:    'Dark mode',
+                        subtitle: 'Easier on the eyes at night',
+                        trailing: Switch(
+                          value:     themeCtrl.resolveIsDark(context),
+                          onChanged: (_) => themeCtrl.toggleTheme(context),
+                        ),
+                        onTap: () => themeCtrl.toggleTheme(context),
+                      ),
+                      Divider(height: 1, color: p.hairline),
+                      _SettingsRow(
+                        icon:     Icons.history_rounded,
+                        title:    'Past tours',
+                        subtitle: 'See old tours and settle what\'s left',
+                        onTap:    () => context.push(AppRoutes.tourHistory),
+                      ),
+                      Divider(height: 1, color: p.hairline),
+                      _SettingsRow(
+                        icon:     Icons.logout_rounded,
+                        title:    'Sign out',
+                        danger:   true,
+                        onTap:    _signOut,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Center(
+                  child: Text('${AppConstants.appName}  ·  ${AppConstants.appTagline}',
+                      style: t.bodySmall?.copyWith(color: p.textFaint)),
+                ),
+              ],
             ),
-            const SizedBox(height: 32),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -281,7 +356,7 @@ class _ProfileViewState extends State<ProfileView> {
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) => AlertDialog(
-        title:   const Text('Transfer Admin Role'),
+        title:   const Text('Hand over admin'),
         content: others.isEmpty
             ? const Text('No other members to transfer admin to.')
             : SizedBox(
@@ -292,12 +367,15 @@ class _ProfileViewState extends State<ProfileView> {
                     leading:  const Icon(Icons.person_rounded),
                     title:    Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: const Text('Tap to make admin'),
-                    onTap: () {
+                    onTap: () async {
                       Navigator.of(dialogCtx).pop();
-                      groupCtrl.transferAdmin(m.userId);
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('${m.name} is now the group admin.'),
-                        backgroundColor: AppColors.success,
+                      final messenger = ScaffoldMessenger.of(context);
+                      final ok = await groupCtrl.transferAdmin(m.userId);
+                      messenger.showSnackBar(SnackBar(
+                        content: Text(ok
+                            ? '${m.name} is now the tour admin.'
+                            : groupCtrl.errorMessage ?? 'Couldn\'t hand over the admin role.'),
+                        backgroundColor: ok ? AppColors.success : AppColors.error,
                       ));
                     },
                   )).toList(),
@@ -318,17 +396,30 @@ class _ProfileViewState extends State<ProfileView> {
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) => AlertDialog(
-        title:   const Text('End This Tour?'),
-        content: const Text('The group will be moved to history and all members will be notified.'),
+        title:   const Text('End this tour?'),
+        content: FutureBuilder<int>(
+          future: groupCtrl.openDebtCount(group.groupId),
+          builder: (_, snap) {
+            final open = snap.data ?? 0;
+            return Text(
+              'Nobody can add new expenses after this, and everyone is told it ended.'
+              '${open > 0 ? '\n\n$open ${open == 1 ? 'debt is' : 'debts are'} still unpaid. '
+                  'People can still pay and confirm them from Past tours.' : ''}',
+            );
+          },
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
           TextButton(
             onPressed: () async {
               // 1. Close the dialog first
               Navigator.pop(dialogCtx);
+              if (!mounted) return;
+              final rootNav   = Navigator.of(context, rootNavigator: true);
+              final router    = GoRouter.of(context);
+              final messenger = ScaffoldMessenger.of(context);
 
               // 2. Show a loading indicator while deactivating
-              if (!mounted) return;
               showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -339,17 +430,22 @@ class _ProfileViewState extends State<ProfileView> {
               );
 
               // 3. Await the actual deactivation
-              await groupCtrl.deactivateGroup(
+              final ok = await groupCtrl.deactivateGroup(
                 groupId:   group.groupId,
-                reason:    AppConstants.inactivatedByAdmin,
                 memberIds: group.members.keys.toList(),
                 groupName: group.name,
               );
 
-              // 4. Dismiss loading dialog + navigate to group hub
-              if (!mounted) return;
-              Navigator.of(context, rootNavigator: true).pop(); // dismiss loader
-              context.go(AppRoutes.groupHub);
+              // 4. Dismiss loading dialog, then go to the group hub (or say why not)
+              rootNav.pop();
+              if (ok) {
+                router.go(AppRoutes.groupHub);
+              } else {
+                messenger.showSnackBar(SnackBar(
+                  content:         Text(groupCtrl.errorMessage ?? 'Couldn\'t end the tour.'),
+                  backgroundColor: AppColors.error,
+                ));
+              }
             },
             child: const Text('End Tour', style: TextStyle(color: AppColors.error)),
           ),
@@ -363,11 +459,11 @@ class _ProfileViewState extends State<ProfileView> {
       context: context,
       barrierDismissible: true,
       builder: (dialogCtx) => AlertDialog(
-        title:   const Text('Leave Group?'),
+        title:   const Text('Leave this tour?'),
         content: const Text(
           'Your leave request will be sent to the admin for approval.\n\n'
           'Your expenses and debts will remain recorded even after you leave.\n'
-          'You can rejoin later using the group code.',
+          'You can rejoin later with the join code.',
         ),
         actions: [
           TextButton(
@@ -378,15 +474,15 @@ class _ProfileViewState extends State<ProfileView> {
             onPressed: () async {
               Navigator.pop(dialogCtx);
               if (!mounted) return;
+              final messenger = ScaffoldMessenger.of(context);
               final ok = await groupCtrl.requestLeave(
                 userId:   user.uid,
                 userName: user.name,
               );
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              messenger.showSnackBar(SnackBar(
                 content: Text(ok
                     ? 'Leave request sent to admin. You\'ll be removed once approved.'
-                    : 'Failed to send request. Please try again.'),
+                    : (groupCtrl.errorMessage ?? 'Couldn\'t send the request. Try again.')),
                 backgroundColor: ok ? AppColors.success : AppColors.error,
                 duration: const Duration(seconds: 4),
               ));
@@ -399,645 +495,52 @@ class _ProfileViewState extends State<ProfileView> {
   }
 }
 
-// ── Group Code Tile ───────────────────────────────────────────────────────────
-class _GroupCodeTile extends StatelessWidget {
-  final dynamic        group;
-  final GroupController groupCtrl;
-  const _GroupCodeTile({required this.group, required this.groupCtrl});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme      = Theme.of(context).colorScheme;
-    final isExpired   = group.isCodeExpired as bool;
-    final timeLeft    = (group.groupCodeExpiresAt as DateTime).difference(DateTime.now());
-    final minsLeft    = timeLeft.inMinutes.clamp(0, 60);
-    final isRefreshing = groupCtrl.isRefreshingCode;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Group Join Code', style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant, fontWeight: FontWeight.w500)),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color:        AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border:       Border.all(color: AppColors.primary.withOpacity(0.2)),
-                ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 32), // balances the share button on the right
-                    Expanded(
-                      child: Text(
-                        group.groupCode as String,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: 6, color: AppColors.primary),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    Tooltip(
-                      message: 'Share invite to WhatsApp, Messenger, etc.',
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () => _showInviteSheet(context, group),
-                          child: Container(
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary.withOpacity(0.18),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.share_rounded, size: 18, color: AppColors.primary),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              children: [
-                IconButton(
-                  icon:     const Icon(Icons.copy_rounded),
-                  onPressed: () {
-                    Clipboard.setData(ClipboardData(text: group.groupCode as String));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Group code copied!'), duration: Duration(seconds: 2)),
-                    );
-                  },
-                  tooltip: 'Copy code',
-                ),
-                // Refresh button — shows spinner while refreshing
-                isRefreshing
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-                      )
-                    : IconButton(
-                        icon:     Icon(Icons.refresh_rounded, color: isExpired ? AppColors.error : AppColors.success),
-                        onPressed: () async {
-                          await groupCtrl.refreshGroupCode();
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('✅ Code refreshed! Share it with members.'),
-                                duration: Duration(seconds: 3),
-                              ),
-                            );
-                          }
-                        },
-                        tooltip: 'Refresh code',
-                      ),
-              ],
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(children: [
-          Icon(
-            isExpired ? Icons.timer_off_rounded : Icons.timer_rounded,
-            size:  14,
-            color: isExpired ? AppColors.error : AppColors.success,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            isExpired ? 'Code expired — tap refresh' : 'Expires in ${minsLeft}m',
-            style: TextStyle(fontSize: 12, color: isExpired ? AppColors.error : AppColors.success, fontWeight: FontWeight.w500),
-          ),
-        ]),
-      ],
-    );
-  }
-
-  void _showInviteSheet(BuildContext context, dynamic group) {
-    final scheme = Theme.of(context).colorScheme;
-    final code = group.groupCode as String;
-    final tourName = group.name as String;
-    final inviteText = '$code\n\n'
-        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!';
-
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (ctx) {
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.88,
-          ),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF141311) : scheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.35),
-                blurRadius: 20,
-                offset: const Offset(0, -6),
-              ),
-            ],
-          ),
-          child: SafeArea(
-            top: false,
-            child: SingleChildScrollView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Drag handle
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 4,
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: scheme.onSurfaceVariant.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
-                  ),
-
-                  // Title Header
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(9),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFFD4A017).withOpacity(0.18)
-                              : AppColors.primary.withOpacity(0.14),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.send_rounded,
-                          color: isDark ? const Color(0xFFFFD700) : AppColors.primary,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Invite to $tourName',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: scheme.onSurface,
-                              ),
-                            ),
-                            Text(
-                              'Share the group code via messaging apps',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Code Display Card (Never wraps, prominent, elegant)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E1C18) : AppColors.primary.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isDark
-                            ? const Color(0xFFD4A017).withOpacity(0.3)
-                            : AppColors.primary.withOpacity(0.3),
-                        width: 1.2,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'GROUP JOIN CODE',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.5,
-                                color: isDark ? const Color(0xFFB0A880) : scheme.onSurfaceVariant,
-                              ),
-                            ),
-                            Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(8),
-                                onTap: () {
-                                  HapticFeedback.lightImpact();
-                                  Clipboard.setData(ClipboardData(text: code));
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('✅ Join code copied!'),
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                },
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                                  decoration: BoxDecoration(
-                                    color: isDark
-                                        ? const Color(0xFFD4A017).withOpacity(0.18)
-                                        : AppColors.primary.withOpacity(0.18),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.copy_rounded,
-                                        size: 14,
-                                        color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Copy Code',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w700,
-                                          color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            code,
-                            maxLines: 1,
-                            style: TextStyle(
-                              fontSize: 32,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 8,
-                              color: isDark ? const Color(0xFFFFD700) : AppColors.poshGold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Share Targets with Actual Brand Icons
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _ShareTargetButton(
-                        label: 'WhatsApp',
-                        app: 'whatsapp',
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _launchShare(tourName: tourName, code: code, target: 'whatsapp');
-                        },
-                      ),
-                      _ShareTargetButton(
-                        label: 'Messenger',
-                        app: 'messenger',
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _launchShare(tourName: tourName, code: code, target: 'messenger');
-                        },
-                      ),
-                      _ShareTargetButton(
-                        label: 'Instagram',
-                        app: 'instagram',
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _launchShare(tourName: tourName, code: code, target: 'instagram');
-                        },
-                      ),
-                      _ShareTargetButton(
-                        label: 'More Apps',
-                        app: 'more',
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _launchShare(tourName: tourName, code: code, target: null);
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Formatted Message Preview Card (Clean, NO Github link)
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF1E1C18) : scheme.surfaceVariant.withOpacity(0.35),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: isDark ? const Color(0xFFD4A017).withOpacity(0.2) : scheme.outline.withOpacity(0.15),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'MESSAGE PREVIEW',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.2,
-                                color: scheme.onSurfaceVariant,
-                              ),
-                            ),
-                            InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: inviteText));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('✅ Full invite message copied!'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              },
-                              child: Row(
-                                children: [
-                                  Icon(Icons.copy_rounded, size: 12, color: scheme.primary),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'Copy Message',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: scheme.primary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFFD4A017).withOpacity(0.18)
-                                : AppColors.primary.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            code,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 2,
-                              color: isDark ? const Color(0xFFFFD700) : AppColors.primary,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!',
-                          style: TextStyle(
-                            fontSize: 13,
-                            height: 1.4,
-                            fontWeight: FontWeight.w500,
-                            color: scheme.onSurface,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _launchShare({
-    required String tourName,
-    required String code,
-    String? target,
-  }) async {
-    final inviteText = '$code\n\n'
-        'Join our tour "$tourName" on Taka Koi? to track all our shared expenses!';
-
-    const channel = MethodChannel('com.tourtracker.tour_expense_tracker/app_launcher');
-
-    if (target == 'whatsapp') {
-      try {
-        final ok = await channel.invokeMethod<bool>('shareToPackage', {
-          'package': 'com.whatsapp',
-          'text': inviteText,
-        });
-        if (ok == true) return;
-      } catch (_) {}
-
-      final uri = Uri.parse('whatsapp://send?text=${Uri.encodeComponent(inviteText)}');
-      try {
-        if (await canLaunchUrl(uri)) {
-          await launchUrl(uri, mode: LaunchMode.externalApplication);
-          return;
-        }
-      } catch (_) {}
-
-      final webUri = Uri.parse('https://wa.me/?text=${Uri.encodeComponent(inviteText)}');
-      try {
-        if (await canLaunchUrl(webUri)) {
-          await launchUrl(webUri, mode: LaunchMode.externalApplication);
-          return;
-        }
-      } catch (_) {}
-    } else if (target == 'messenger') {
-      try {
-        final ok = await channel.invokeMethod<bool>('shareToPackage', {
-          'package': 'com.facebook.orca',
-          'text': inviteText,
-        });
-        if (ok == true) return;
-      } catch (_) {}
-    } else if (target == 'instagram') {
-      try {
-        final ok = await channel.invokeMethod<bool>('shareToPackage', {
-          'package': 'com.instagram.android',
-          'text': inviteText,
-        });
-        if (ok == true) return;
-      } catch (_) {}
-    }
-
-    // System share sheet (Default / "More Apps")
-    try {
-      final ok = await channel.invokeMethod<bool>('shareText', {
-        'text': inviteText,
-        'title': 'Invite Members to $tourName',
-      });
-      if (ok == true) return;
-    } catch (_) {}
-
-    // Fallback: copy to clipboard
-    await Clipboard.setData(ClipboardData(text: inviteText));
-  }
-}
-
-class _ShareTargetButton extends StatelessWidget {
-  final String label;
-  final String app;
+/// One tappable settings line: icon, title, optional subtitle and trailing.
+class _SettingsRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final bool danger;
   final VoidCallback onTap;
 
-  const _ShareTargetButton({
-    required this.label,
-    required this.app,
+  const _SettingsRow({
+    required this.icon,
+    required this.title,
     required this.onTap,
+    this.subtitle,
+    this.trailing,
+    this.danger = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
+    final p = context.palette;
+    final t = Theme.of(context).textTheme;
+    final c = danger ? p.negative : p.text;
+    return Pressable(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Row(
           children: [
-            BrandLogoWidget(app: app, size: 52),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.onSurface,
+            IconTile(icon, size: 38, radius: 12, color: danger ? p.negative : p.accent),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: t.titleSmall?.copyWith(color: c, fontWeight: FontWeight.w600)),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!, style: t.bodySmall),
+                  ],
+                ],
               ),
             ),
+            trailing ?? Icon(Icons.chevron_right_rounded, color: p.textFaint),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class BrandLogoWidget extends StatelessWidget {
-  final String app;
-  final double size;
-
-  const BrandLogoWidget({super.key, required this.app, this.size = 52});
-
-  @override
-  Widget build(BuildContext context) {
-    switch (app) {
-      case 'whatsapp':
-        return SizedBox(
-          width: size,
-          height: size,
-          child: Image.asset(
-            'assets/icons/whatsapp.png',
-            width: size,
-            height: size,
-            fit: BoxFit.contain,
-          ),
-        );
-
-      case 'messenger':
-        return SizedBox(
-          width: size,
-          height: size,
-          child: Image.asset(
-            'assets/icons/messenger.png',
-            width: size,
-            height: size,
-            fit: BoxFit.contain,
-          ),
-        );
-
-      case 'instagram':
-        return SizedBox(
-          width: size,
-          height: size,
-          child: Image.asset(
-            'assets/icons/instagram.png',
-            width: size,
-            height: size,
-            fit: BoxFit.contain,
-          ),
-        );
-
-      default:
-        final isDark = Theme.of(context).brightness == Brightness.dark;
-        return Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isDark ? const Color(0xFF26231C) : const Color(0xFFEDE8DD),
-            border: Border.all(
-              color: isDark ? const Color(0xFFD4A017).withOpacity(0.35) : const Color(0xFFD0C8B8),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.35 : 0.08),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Center(
-            child: Icon(
-              Icons.apps_rounded,
-              size: size * 0.46,
-              color: isDark ? const Color(0xFFFFD700) : const Color(0xFF1C1917),
-            ),
-          ),
-        );
-    }
-  }
-}
-
-// ── Helper Card ───────────────────────────────────────────────────────────────
-class _SectionCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-  const _SectionCard({required this.title, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      padding:    const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color:        scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: scheme.onSurfaceVariant)),
-          const SizedBox(height: 12),
-          child,
-        ],
       ),
     );
   }

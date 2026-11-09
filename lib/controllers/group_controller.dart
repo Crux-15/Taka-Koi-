@@ -2,17 +2,32 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/bkash_share.dart';
 import '../models/group_model.dart';
+import '../services/bkash_service.dart';
 import '../services/group_service.dart';
 import '../services/notification_service.dart';
 import '../utils/app_constants.dart';
+import '../utils/app_exception.dart';
+import '../utils/app_log.dart';
+import '../utils/offline.dart';
 
 enum GroupStatus { initial, loading, loaded, error }
 
 /// Controller for group management operations.
 class GroupController extends ChangeNotifier {
-  final GroupService        _groupService = GroupService();
-  final NotificationService _notifService = NotificationService();
+  /// Services can be swapped for fakes in tests.
+  GroupController({
+    GroupService?        groupService,
+    NotificationService? notificationService,
+    BkashService?        bkashService,
+  })  : _groupService = groupService ?? GroupService(),
+        _notifService = notificationService ?? NotificationService(),
+        _bkashService = bkashService ?? BkashService();
+
+  final GroupService        _groupService;
+  final NotificationService _notifService;
+  final BkashService        _bkashService;
 
   GroupStatus  _status       = GroupStatus.initial;
   GroupModel?  _activeGroup;
@@ -21,6 +36,8 @@ class GroupController extends ChangeNotifier {
   StreamSubscription<GroupModel?>? _groupSub;
   bool _refreshingCode = false;
   String? _currentUserId; // stored so stream can detect when THIS user is removed
+  String? _autoEndTried;   // group we already tried to auto-end this session
+  String? _backfilled;     // group whose memberIds we already filled in
 
   GroupStatus       get status          => _status;
   GroupModel?       get activeGroup     => _activeGroup;
@@ -29,6 +46,16 @@ class GroupController extends ChangeNotifier {
   bool get isLoading        => _status == GroupStatus.loading;
   bool get hasActiveGroup   => _activeGroup != null && _activeGroup!.isActive;
   bool get isRefreshingCode => _refreshingCode;
+
+  /// Tests and screenshots only: show [group] as the active tour without
+  /// listening to the database.
+  @visibleForTesting
+  void debugSetActiveGroup(GroupModel group, {String? currentUserId}) {
+    _activeGroup   = group;
+    _currentUserId = currentUserId ?? _currentUserId;
+    _status        = GroupStatus.loaded;
+    notifyListeners();
+  }
 
   // ── Load Active Group ─────────────────────────────────────────────────────
   /// [currentUserId] — the UID of the signed-in user.  Must be supplied so
@@ -40,7 +67,7 @@ class GroupController extends ChangeNotifier {
     _groupSub = _groupService.groupStream(groupId).listen((group) {
       if (group == null) {
         // Group document was deleted — treat as deactivated
-        _handleRemovedFromGroup();
+        _handleRemovedFromGroup(groupId);
         return;
       }
 
@@ -49,7 +76,7 @@ class GroupController extends ChangeNotifier {
       if (group.isActive &&
           _currentUserId != null &&
           !group.members.containsKey(_currentUserId)) {
-        _handleRemovedFromGroup();
+        _handleRemovedFromGroup(groupId);
         return;
       }
 
@@ -60,20 +87,54 @@ class GroupController extends ChangeNotifier {
       // proactively load history so Past Tours shows immediately on redirect.
       if (!group.isActive && _currentUserId != null) {
         loadHistory(_currentUserId!); // fire-and-forget; notifyListeners handles redirect
+        _clearOwnActiveGroup(groupId);
       }
 
       notifyListeners();
-      if (group.isActive) _checkInactivity(group);
+      if (group.isActive) {
+        _backfillMemberIds(group);
+        _checkInactivity(group);
+      }
+    }, onError: (Object e, StackTrace s) {
+      // Once you're removed from a tour the rules stop you reading it, so the
+      // stream fails instead of showing you missing from the member list.
+      if (e is FirebaseException && e.code == 'permission-denied') {
+        _handleRemovedFromGroup(groupId);
+      } else {
+        logError('group stream', e, s);
+      }
     });
+  }
+
+  /// Older tours don't have the memberIds list that tour history and the
+  /// security rules rely on; any member's app fills it in.
+  void _backfillMemberIds(GroupModel group) {
+    if (group.memberIdsInSync || _backfilled == group.groupId) return;
+    _backfilled = group.groupId;
+    inBackground(
+      _groupService.backfillMemberIds(group.groupId, group.members.keys.toList()),
+      'backfill memberIds',
+    );
+  }
+
+  /// Each user clears their own active tour; nobody can edit anyone else's profile.
+  void _clearOwnActiveGroup(String groupId) {
+    final uid = _currentUserId;
+    if (uid == null) return;
+    inBackground(
+      _groupService.clearActiveGroup(userId: uid, groupId: groupId),
+      'clear own active tour',
+    );
   }
 
   /// Called when the current user is kicked out or their leave is approved.
   /// Clears all group state and triggers a router redirect to the group hub.
-  Future<void> _handleRemovedFromGroup() async {
+  Future<void> _handleRemovedFromGroup(String groupId) async {
     _groupSub?.cancel();
     _groupSub = null;
     _activeGroup = null;
     _status = GroupStatus.initial;
+    _clearOwnActiveGroup(groupId);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('activeGroupId');
     // Reload history so the freshly-navigated GroupHubView shows past tours
@@ -100,15 +161,39 @@ class GroupController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Ends an idle tour. The server only accepts this once it agrees there's
+  /// been no activity for 4 days, so a phone with a wrong clock or stale data
+  /// can't end a tour early. Tried at most once per tour per session.
   void _checkInactivity(GroupModel group) {
     final daysSinceLast = DateTime.now().difference(group.lastActivityAt).inDays;
-    if (daysSinceLast >= AppConstants.inactivityDays) {
-      deactivateGroup(
-        groupId:  group.groupId,
-        reason:   AppConstants.inactivatedBySystem,
-        memberIds: group.members.keys.toList(),
-      );
+    if (daysSinceLast < AppConstants.inactivityDays) return;
+    if (_autoEndTried == group.groupId) return;
+    _autoEndTried = group.groupId;
+    _autoEnd(group);
+  }
+
+  Future<void> _autoEnd(GroupModel group) async {
+    try {
+      final ended = await _groupService.autoEndIfIdle(group.groupId);
+      if (!ended) return;
+    } catch (e, s) {
+      // Offline, or the server says it isn't idle yet. Nothing changed.
+      logError('auto-end tour', e, s);
+      return;
     }
+    // Everyone's stream sees the tour end and moves them out of it.
+    inBackground(
+      _notifService.sendToMany(
+        targetUserIds: group.members.keys.toList(),
+        groupId:       group.groupId,
+        groupName:     group.name,
+        type:          AppConstants.notifGroupAutoDeactivated,
+        referenceId:   group.groupId,
+        message:       'Your tour "${group.name}" was automatically ended after '
+            '${AppConstants.inactivityDays} days without activity.',
+      ),
+      'notify tour auto-ended',
+    );
   }
 
   // ── Create Group ──────────────────────────────────────────────────────────
@@ -135,7 +220,7 @@ class GroupController extends ChangeNotifier {
       listenToGroup(group.groupId, currentUserId: adminId);
       return group;
     } catch (e) {
-      _setError('Failed to create group. Please try again.');
+      _setError(friendlyError(e, 'Failed to create group. Please try again.'));
       return null;
     }
   }
@@ -156,7 +241,7 @@ class GroupController extends ChangeNotifier {
         avatarUrl: avatarUrl,
       );
       if (group == null) {
-        _setError('Invalid or expired group code. Ask the group creator to refresh it.');
+        _setError('That code doesn\'t work. It may be mistyped or expired: ask for a new one.');
         return false;
       }
       // Start listening to the group stream so state is live
@@ -165,7 +250,7 @@ class GroupController extends ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
-      _setError('Failed to join group. Please try again.');
+      _setError(friendlyError(e, 'Failed to join group. Please try again.'));
       return false;
     }
   }
@@ -177,8 +262,13 @@ class GroupController extends ChangeNotifier {
     _refreshingCode = true;
     notifyListeners();
     try {
-      await _groupService.refreshGroupCode(_activeGroup!.groupId);
+      await _groupService.refreshGroupCode(
+        _activeGroup!.groupId,
+        oldCode: _activeGroup!.groupCode,
+      );
       // The Firestore stream will auto-update _activeGroup with the new code
+    } catch (e) {
+      _errorMessage = friendlyError(e, "Couldn't refresh the code. Try again.");
     } finally {
       _refreshingCode = false;
       notifyListeners();
@@ -186,53 +276,83 @@ class GroupController extends ChangeNotifier {
   }
 
   // ── Admin: Remove Member ──────────────────────────────────────────────────
+  /// Returns false (with [errorMessage] set) if it didn't work.
   Future<bool> removeMember(String memberId) async {
     if (_activeGroup == null) return false;
     final member = _activeGroup!.members[memberId];
     if (member == null) return false;
-    if (member.hasApprovedExpense) return false; // cannot remove
-    await _groupService.removeMember(groupId: _activeGroup!.groupId, memberId: memberId);
-    return true;
+    if (member.hasApprovedExpense) {
+      _errorMessage = '${member.name} is part of an approved expense, so they can\'t be '
+          'removed. They can ask to leave instead.';
+      notifyListeners();
+      return false;
+    }
+    try {
+      await _groupService.removeMember(groupId: _activeGroup!.groupId, memberId: memberId);
+      return true;
+    } catch (e, s) {
+      logError('remove member', e, s);
+      _errorMessage = friendlyError(e, 'Couldn\'t remove that member. Try again.');
+      notifyListeners();
+      return false;
+    }
   }
 
   // ── Admin: Transfer Admin Role ────────────────────────────────────────────
-  Future<void> transferAdmin(String newAdminId) async {
-    if (_activeGroup == null) return;
-    await _groupService.transferAdmin(groupId: _activeGroup!.groupId, newAdminId: newAdminId);
-    await _notifService.send(
-      targetUserId: newAdminId,
-      groupId:      _activeGroup!.groupId,
-      type:         AppConstants.notifAdminTransferRequired,
-      referenceId:  _activeGroup!.groupId,
-      message:      'You are now the admin of ${_activeGroup!.name}.',
+  /// Returns false (with [errorMessage] set) if it didn't work.
+  Future<bool> transferAdmin(String newAdminId) async {
+    final group = _activeGroup;
+    if (group == null) return false;
+    try {
+      await _groupService.transferAdmin(groupId: group.groupId, newAdminId: newAdminId);
+    } catch (e, s) {
+      logError('transfer admin', e, s);
+      _errorMessage = friendlyError(e, 'Couldn\'t hand over the admin role. Try again.');
+      notifyListeners();
+      return false;
+    }
+    inBackground(
+      _notifService.send(
+        targetUserId: newAdminId,
+        groupId:      group.groupId,
+        type:         AppConstants.notifAdminTransferRequired,
+        referenceId:  group.groupId,
+        message:      'You are now the admin of ${group.name}.',
+      ),
+      'notify new admin',
     );
+    return true;
   }
 
-  // ── Deactivate Group ──────────────────────────────────────────────────────
-  Future<void> deactivateGroup({
+  // ── Deactivate Group (admin) ──────────────────────────────────────────────
+  /// The admin ends the tour. Returns false (with [errorMessage] set) if it
+  /// didn't work. Idle tours are ended by [_autoEnd] instead.
+  Future<bool> deactivateGroup({
     required String groupId,
-    required String reason,
     required List<String> memberIds,
     String groupName = '',
   }) async {
-    await _groupService.deactivateGroup(
-      groupId:   groupId,
-      reason:    reason,
-      memberIds: memberIds,
+    try {
+      await _groupService.deactivateGroup(groupId: groupId);
+    } catch (e, s) {
+      logError('end tour', e, s);
+      _errorMessage = friendlyError(e, 'Couldn\'t end the tour. Try again.');
+      notifyListeners();
+      return false;
+    }
+    // Notify ALL members that the group ended (their devices also react via the stream)
+    inBackground(
+      _notifService.sendToMany(
+        targetUserIds: memberIds,
+        groupId:       groupId,
+        groupName:     groupName,
+        type:          AppConstants.notifGroupEnded,
+        referenceId:   groupId,
+        message:       'Your tour "$groupName" has been ended by the admin.',
+      ),
+      'notify tour ended',
     );
-    // Notify ALL members that the group ended (so their devices react via stream)
-    final msg = reason == AppConstants.inactivatedBySystem
-        ? 'Your tour "$groupName" was automatically ended due to 4 days of inactivity.'
-        : 'Your tour "$groupName" has been ended by the admin.';
-    await _notifService.sendToMany(
-      targetUserIds: memberIds,
-      groupId:       groupId,
-      type:          reason == AppConstants.inactivatedBySystem
-          ? AppConstants.notifGroupAutoDeactivated
-          : AppConstants.notifGroupEnded,
-      referenceId:   groupId,
-      message:       msg,
-    );
+    _clearOwnActiveGroup(groupId);
     // Clear persisted group ID so re-opening doesn't try to restore a dead group
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('activeGroupId');
@@ -243,12 +363,21 @@ class GroupController extends ChangeNotifier {
     }
     _activeGroup = null;
     notifyListeners();
+    return true;
   }
 
   // ── Leave Group (member-initiated, requires admin approval) ───────────────
   Future<bool> requestLeave({required String userId, required String userName}) async {
     if (_activeGroup == null) return false;
+    _errorMessage = null;
     try {
+      final open = await _groupService.openItemsFor(_activeGroup!.groupId, userId);
+      final blocker = _blocker(open, 'you', 'Settle up first, then ask to leave.');
+      if (blocker != null) {
+        _errorMessage = blocker;
+        notifyListeners();
+        return false;
+      }
       await _groupService.requestLeave(
         groupId:    _activeGroup!.groupId,
         memberId:   userId,
@@ -260,46 +389,67 @@ class GroupController extends ChangeNotifier {
         groupId:      _activeGroup!.groupId,
         type:         AppConstants.notifLeaveRequest,
         referenceId:  userId,
-        message:      '$userName has requested to leave the group "${_activeGroup!.name}". Tap to review.',
+        message:      '$userName wants to leave "${_activeGroup!.name}". Tap to review.',
       );
       return true;
-    } catch (_) {
+    } catch (e, s) {
+      logError('request leave', e, s);
+      _errorMessage = friendlyError(e, 'Couldn\'t send the request. Try again.');
       return false;
     }
   }
 
   Future<bool> approveLeave({required String memberId, required String memberName}) async {
     if (_activeGroup == null) return false;
+    final group = _activeGroup!;
+    _errorMessage = null;
     try {
-      await _groupService.approveLeave(groupId: _activeGroup!.groupId, memberId: memberId);
-      await _notifService.send(
-        targetUserId: memberId,
-        groupId:      _activeGroup!.groupId,
-        type:         AppConstants.notifLeaveApproved,
-        referenceId:  _activeGroup!.groupId,
-        message:      'Your request to leave "${_activeGroup!.name}" has been approved.',
-      );
-      return true;
-    } catch (_) {
+      final open = await _groupService.openItemsFor(group.groupId, memberId);
+      final blocker = _blocker(open, memberName, 'Ask them to settle up first.');
+      if (blocker != null) {
+        _errorMessage = blocker;
+        notifyListeners();
+        return false;
+      }
+      await _groupService.approveLeave(groupId: group.groupId, memberId: memberId);
+    } catch (e, s) {
+      logError('approve leave', e, s);
+      _errorMessage = friendlyError(e, 'Couldn\'t approve it. Try again.');
       return false;
     }
+    inBackground(
+      _notifService.send(
+        targetUserId: memberId,
+        groupId:      group.groupId,
+        type:         AppConstants.notifLeaveApproved,
+        referenceId:  group.groupId,
+        message:      'Your request to leave "${group.name}" has been approved.',
+      ),
+      'notify leave approved',
+    );
+    return true;
   }
 
   Future<bool> rejectLeave({required String memberId, required String memberName}) async {
     if (_activeGroup == null) return false;
+    final group = _activeGroup!;
     try {
-      await _groupService.rejectLeave(groupId: _activeGroup!.groupId, memberId: memberId);
-      await _notifService.send(
-        targetUserId: memberId,
-        groupId:      _activeGroup!.groupId,
-        type:         AppConstants.notifLeaveRejected,
-        referenceId:  _activeGroup!.groupId,
-        message:      'Your request to leave "${_activeGroup!.name}" was rejected by the admin.',
-      );
-      return true;
-    } catch (_) {
+      await _groupService.rejectLeave(groupId: group.groupId, memberId: memberId);
+    } catch (e, s) {
+      logError('reject leave', e, s);
       return false;
     }
+    inBackground(
+      _notifService.send(
+        targetUserId: memberId,
+        groupId:      group.groupId,
+        type:         AppConstants.notifLeaveRejected,
+        referenceId:  group.groupId,
+        message:      'Your request to leave "${group.name}" was rejected by the admin.',
+      ),
+      'notify leave rejected',
+    );
+    return true;
   }
 
   Stream<List<Map<String, dynamic>>> leaveRequestsStream() {
@@ -308,11 +458,51 @@ class GroupController extends ChangeNotifier {
   }
 
   // ── Remove from History ───────────────────────────────────────────────────
-  Future<void> removeFromHistory({required String groupId, required String userId}) async {
-    await _groupService.removeFromHistory(groupId: groupId, userId: userId);
+  /// Returns false (with [errorMessage] set) if it didn't work.
+  Future<bool> removeFromHistory({required String groupId, required String userId}) async {
+    _errorMessage = null;
+    try {
+      final open = await _groupService.openItemsFor(groupId, userId);
+      final blocker = _blocker(open, 'you', 'Settle up before removing it.');
+      if (blocker != null) {
+        _errorMessage = blocker;
+        notifyListeners();
+        return false;
+      }
+      await _groupService.removeFromHistory(groupId: groupId, userId: userId);
+    } catch (e, s) {
+      logError('remove from history', e, s);
+      _errorMessage = friendlyError(e, 'Couldn\'t remove that tour. Try again.');
+      notifyListeners();
+      return false;
+    }
     // Remove locally so the list updates instantly without re-fetching
     _history.removeWhere((g) => g.groupId == groupId);
     notifyListeners();
+    return true;
+  }
+
+  /// Unsettled debts in the tour, for the "end tour" warning (0 if unknown).
+  Future<int> openDebtCount(String groupId) async {
+    try {
+      return await _groupService.openDebtCount(groupId);
+    } catch (e, s) {
+      logError('count open debts', e, s);
+      return 0;
+    }
+  }
+
+  /// A plain explanation of why someone can't leave yet, or null if they can.
+  static String? _blocker(({int owes, int owed, int pending}) open, String who, String advice) {
+    final you  = who == 'you';
+    final name = you ? 'You' : who;
+    if (open.owes > 0) return '$name still ${you ? 'owe' : 'owes'} money in this tour. $advice';
+    if (open.owed > 0) return '$name ${you ? 'are' : 'is'} still owed money in this tour. $advice';
+    if (open.pending > 0) {
+      return 'There ${open.pending == 1 ? 'is an expense' : 'are expenses'} waiting on '
+          '${you ? 'you' : who}. Approve, reject or delete ${open.pending == 1 ? 'it' : 'them'} first.';
+    }
+    return null;
   }
 
   // ── Load History ──────────────────────────────────────────────────────────
@@ -320,7 +510,10 @@ class GroupController extends ChangeNotifier {
     try {
       _history = await _groupService.fetchUserGroupHistory(userId);
       notifyListeners();
-    } catch (_) {}
+    } catch (e, s) {
+      // Keeps showing the last list it had.
+      logError('load tour history', e, s);
+    }
   }
 
 
@@ -346,8 +539,6 @@ class GroupController extends ChangeNotifier {
 
   // ── bKash Number Sharing ──────────────────────────────────────────────────
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
-
   /// Sends a bKash number request from [requesterId] to [targetId].
   Future<bool> requestBkash({
     required String groupId,
@@ -358,31 +549,33 @@ class GroupController extends ChangeNotifier {
     required String groupName,
   }) async {
     try {
-      final docId = '${groupId}_${requesterId}_$targetId';
-      await _db.collection(AppConstants.colBkashRequests).doc(docId).set({
-        'groupId':       groupId,
-        'requesterId':   requesterId,
-        'requesterName': requesterName,
-        'targetId':      targetId,
-        'targetName':    targetName,
-        'status':        'pending',
-        'createdAt':     FieldValue.serverTimestamp(),
-      });
-      await _notifService.send(
+      await _bkashService.request(
+        groupId:       groupId,
+        requesterId:   requesterId,
+        requesterName: requesterName,
+        targetId:      targetId,
+        targetName:    targetName,
+      );
+    } catch (e, s) {
+      logError('request bKash', e, s);
+      return false;
+    }
+    inBackground(
+      _notifService.send(
         targetUserId: targetId,
         groupId:      groupId,
         groupName:    groupName,
         type:         AppConstants.notifBkashRequested,
         referenceId:  requesterId,
         message:      '$requesterName is requesting your bKash number',
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
+      ),
+      'notify bKash request',
+    );
+    return true;
   }
 
-  /// Target accepts the bKash request — updates status & notifies requester.
+  /// Target accepts the bKash request: copies their own number into the
+  /// request (the only place the requester can read it) and notifies them.
   Future<bool> acceptBkashRequest({
     required String groupId,
     required String requesterId,
@@ -390,23 +583,31 @@ class GroupController extends ChangeNotifier {
     required String targetId,
     required String targetName,
     required String groupName,
+    required String? myBkashNumber,
   }) async {
     try {
-      final docId = '${groupId}_${requesterId}_$targetId';
-      await _db.collection(AppConstants.colBkashRequests).doc(docId)
-          .update({'status': 'accepted'});
-      await _notifService.send(
+      await _bkashService.accept(
+        groupId:     groupId,
+        requesterId: requesterId,
+        targetId:    targetId,
+        number:      myBkashNumber,
+      );
+    } catch (e, s) {
+      logError('accept bKash', e, s);
+      return false;
+    }
+    inBackground(
+      _notifService.send(
         targetUserId: requesterId,
         groupId:      groupId,
         groupName:    groupName,
         type:         AppConstants.notifBkashAccepted,
         referenceId:  targetId,
         message:      '$targetName shared their bKash number with you',
-      );
-      return true;
-    } catch (_) {
-      return false;
-    }
+      ),
+      'notify bKash accepted',
+    );
+    return true;
   }
 
   /// Target declines the bKash request.
@@ -416,38 +617,20 @@ class GroupController extends ChangeNotifier {
     required String targetId,
   }) async {
     try {
-      final docId = '${groupId}_${requesterId}_$targetId';
-      await _db.collection(AppConstants.colBkashRequests).doc(docId)
-          .update({'status': 'declined'});
+      await _bkashService.decline(
+        groupId:     groupId,
+        requesterId: requesterId,
+        targetId:    targetId,
+      );
       return true;
-    } catch (_) {
+    } catch (e, s) {
+      logError('decline bKash', e, s);
       return false;
     }
   }
 
-  /// Real-time stream of bKash request status: 'pending'/'accepted'/'declined'/null.
-  Stream<String?> bkashStatusStream(
-      String groupId, String requesterId, String targetId) {
-    final docId = '${groupId}_${requesterId}_$targetId';
-    return _db
-        .collection(AppConstants.colBkashRequests)
-        .doc(docId)
-        .snapshots()
-        .map((snap) {
-          if (!snap.exists) return null;
-          final data = snap.data();
-          return data?['status'] as String?;
-        });
-  }
-
-  /// Fetches the bKash number of a user from Firestore.
-  Future<String?> fetchMemberBkash(String uid) async {
-    try {
-      final doc  = await _db.collection(AppConstants.colUsers).doc(uid).get();
-      final data = doc.data();
-      return data?['bkashNumber'] as String?;
-    } catch (_) {
-      return null;
-    }
-  }
+  /// Real-time state of a bKash request (null if never requested). Once
+  /// accepted it carries the shared number.
+  Stream<BkashShare?> bkashShareStream(String groupId, String requesterId, String targetId) =>
+      _bkashService.shareStream(groupId, requesterId, targetId);
 }

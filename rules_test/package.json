@@ -1,0 +1,17 @@
+{
+  "name": "taka-koi-rules-test",
+  "private": true,
+  "type": "module",
+  "description": "Tests for firestore.rules (rule by rule and a whole tour end to end), plus the one-off data migration.",
+  "scripts": {
+    "test": "firebase emulators:exec --project demo-taka-koi --only firestore \"node --test --test-concurrency=1 tests/firestore.test.mjs tests/flows.test.mjs tests/migrate.test.mjs\"",
+    "migrate": "node migrate.mjs"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "firebase": "^11.10.0"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.4.0"
+  }
+}

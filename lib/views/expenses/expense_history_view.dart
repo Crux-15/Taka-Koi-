@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/expense_controller.dart';
 import '../../controllers/group_controller.dart';
 import '../../models/expense_model.dart';
-import '../../utils/app_colors.dart';
-import '../../utils/app_constants.dart';
+import '../../models/group_model.dart';
 import '../../utils/app_router.dart';
+import '../../utils/display_helpers.dart';
+import '../../utils/money.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/ui/ui.dart';
 
-/// Detailed expense history for the current user.
-/// Shows both PENDING (awaiting approval) and APPROVED expenses.
-/// Tap any card to open the detail screen.
+/// Expenses you logged: waiting for approval first, then approved by day.
 class ExpenseHistoryView extends StatelessWidget {
   const ExpenseHistoryView({super.key});
 
@@ -23,426 +22,225 @@ class ExpenseHistoryView extends StatelessWidget {
     final groupCtrl = context.watch<GroupController>();
     final auth      = context.watch<AuthController>();
     final group     = groupCtrl.activeGroup;
-    final isAdmin   = group?.adminId == auth.user?.uid;
     final uid       = auth.user?.uid ?? '';
-    final userName  = auth.user?.name ?? '';
+    final p         = context.palette;
+    final t         = Theme.of(context).textTheme;
+    final symbol    = group?.currencySymbol ?? '৳';
 
     final pending  = expCtrl.myExpenses.where((e) => e.isPending).toList();
     final approved = expCtrl.myExpenses.where((e) => e.isApproved).toList();
+    final paid     = approved.fold<double>(0, (s, e) => s + e.amount);
 
-    // Group approved expenses chronologically by calendar day
-    final Map<DateTime, List<ExpenseModel>> groupedApproved = {};
+    final byDay = <DateTime, List<ExpenseModel>>{};
     for (final e in approved) {
-      final dayKey = DateTime(e.createdAt.year, e.createdAt.month, e.createdAt.day);
-      groupedApproved.putIfAbsent(dayKey, () => []).add(e);
+      byDay.putIfAbsent(DateTime(e.createdAt.year, e.createdAt.month, e.createdAt.day), () => []).add(e);
     }
-    // Sort days descending (most recent day first)
-    final sortedDays = groupedApproved.keys.toList()..sort((a, b) => b.compareTo(a));
+    final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    void open(ExpenseModel e) =>
+        context.push('${AppRoutes.expenseDetail}?expenseId=${e.expenseId}&groupId=${group?.groupId ?? ''}');
+
+    Widget tile(ExpenseModel e) => Row(
+          children: [
+            Expanded(child: ExpenseTile(expense: e, symbol: symbol, myUid: uid, showStatus: true, onTap: () => open(e))),
+            if (group != null)
+              IconButton(
+                tooltip:   'More',
+                icon:      Icon(Icons.more_vert_rounded, color: p.textFaint, size: 20),
+                onPressed: () => _showActions(context, e, group, uid, auth.user?.name ?? '', open),
+              ),
+          ],
+        );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Expenses')),
+      appBar: AppBar(title: const Text('Your expenses'), centerTitle: true),
       body: expCtrl.myExpenses.isEmpty
-          ? const EmptyStateWidget(
-              icon:     Icons.receipt_long_outlined,
-              title:    'No Expenses Yet',
-              subtitle: 'Your logged expenses will appear here.',
+          ? EmptyStateWidget(
+              icon:     Icons.receipt_long_rounded,
+              title:    'Nothing logged yet',
+              subtitle: 'Expenses you add for the tour show up here.',
+              action: SizedBox(
+                width: 200,
+                child: FilledButton.icon(
+                  onPressed: () => context.push(AppRoutes.logExpense),
+                  icon:  const Icon(Icons.add_rounded),
+                  label: const Text('Add expense'),
+                ),
+              ),
             )
           : ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
               children: [
-                // ── Pending section ──────────────────────────────────────
-                if (pending.isNotEmpty) ...[
-                  _SectionHeader(
-                    title: 'Awaiting Approval',
-                    count: pending.length,
-                    color: Colors.orange,
-                  ),
-                  const SizedBox(height: 8),
-                  ...pending.map((e) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _ExpenseCard(
-                      expense:         e,
-                      symbol:          group?.currencySymbol ?? '৳',
-                      expCtrl:         expCtrl,
-                      groupId:         group?.groupId ?? '',
-                      groupName:       group?.name ?? '',
-                      adminId:         group?.adminId ?? '',
-                      currentUid:      uid,
-                      currentUserName: userName,
-                      isAdmin:         isAdmin,
-                    ),
-                  )),
-                  const SizedBox(height: 8),
-                ],
-
-                // ── Approved section (Day-by-Day Grouped) ────────────────
-                if (approved.isNotEmpty) ...[
-                  _SectionHeader(
-                    title: 'Approved',
-                    count: approved.length,
-                    color: AppColors.success,
-                  ),
-                  const SizedBox(height: 10),
-                  ...sortedDays.map((day) {
-                    final dayExpenses = groupedApproved[day]!;
-                    final dayTotal = dayExpenses.fold<double>(0.0, (s, e) => s + e.amount);
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _DayGroupHeader(
-                          day:    day,
-                          count:  dayExpenses.length,
-                          total:  dayTotal,
-                          symbol: group?.currencySymbol ?? '৳',
+                AppCard(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('YOU PAID FOR THE GROUP', style: AppType.overline(p.textMuted)),
+                            const SizedBox(height: 6),
+                            MoneyText(paid, symbol: symbol, size: 26),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${approved.length} approved'
+                              '${pending.isEmpty ? '' : ' · ${pending.length} waiting'}',
+                              style: t.bodySmall,
+                            ),
+                          ],
                         ),
-                        ...dayExpenses.map((e) => Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _ExpenseCard(
-                            expense:         e,
-                            symbol:          group?.currencySymbol ?? '৳',
-                            expCtrl:         expCtrl,
-                            groupId:         group?.groupId ?? '',
-                            groupName:       group?.name ?? '',
-                            adminId:         group?.adminId ?? '',
-                            currentUid:      uid,
-                            currentUserName: userName,
-                            isAdmin:         isAdmin,
-                          ),
-                        )),
-                      ],
-                    );
-                  }),
-                ],
-              ],
-            ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final int    count;
-  final Color  color;
-  const _SectionHeader({required this.title, required this.count, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(children: [
-      Container(width: 4, height: 18, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-      const SizedBox(width: 8),
-      Text('$title ($count)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: color)),
-    ]);
-  }
-}
-
-/// Day-by-Day sticky-style date header with expense count & daily subtotal
-class _DayGroupHeader extends StatelessWidget {
-  final DateTime day;
-  final int count;
-  final double total;
-  final String symbol;
-
-  const _DayGroupHeader({
-    required this.day,
-    required this.count,
-    required this.total,
-    required this.symbol,
-  });
-
-  String _formatDayTitle(DateTime date) {
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    final yesterday = today.subtract(const Duration(days: 1));
-
-    if (date == today) {
-      return 'Today • ${DateFormat('MMM d').format(date)}';
-    } else if (date == yesterday) {
-      return 'Yesterday • ${DateFormat('MMM d').format(date)}';
-    } else {
-      return DateFormat('EEE, MMM d, y').format(date);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 10),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isDark ? AppColors.surfaceVariantDark : const Color(0xFFF3EFE6),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isDark ? AppColors.outlineDark : const Color(0xFFE2DBCB),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.calendar_today_rounded,
-                  size: 13,
-                  color: isDark ? AppColors.primaryLight : AppColors.poshGold,
-                ),
-                const SizedBox(width: 7),
-                Text(
-                  _formatDayTitle(day),
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: isDark ? AppColors.onSurfaceDark : AppColors.poshObsidian,
-                    letterSpacing: 0.1,
+                      ),
+                      const IconTile(Icons.receipt_long_rounded, size: 50),
+                    ],
                   ),
                 ),
-              ],
-            ),
-            Row(
-              children: [
-                Text(
-                  '$count ${count == 1 ? "item" : "items"} • ',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                Text(
-                  '$symbol${total.toStringAsFixed(2)}',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    color: isDark ? AppColors.primaryLight : AppColors.poshGold,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ExpenseCard extends StatelessWidget {
-  final ExpenseModel      expense;
-  final String            symbol;
-  final ExpenseController expCtrl;
-  final String            groupId;
-  final String            groupName;
-  final String            adminId;
-  final String            currentUid;
-  final String            currentUserName;
-  final bool              isAdmin;
-
-  const _ExpenseCard({
-    required this.expense,
-    required this.symbol,
-    required this.expCtrl,
-    required this.groupId,
-    required this.groupName,
-    required this.adminId,
-    required this.currentUid,
-    required this.currentUserName,
-    required this.isAdmin,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme    = Theme.of(context).colorScheme;
-    final fmt       = DateFormat('MMM d, y • h:mm a');
-    final canDelete = expense.loggedBy == currentUid || isAdmin;
-    final isPending = expense.isPending;
-
-    // Approval summary for pending expenses
-    String? approvalSummary;
-    if (isPending && expense.approvals.isNotEmpty) {
-      final approved = expense.approvals.values.where((v) => v == AppConstants.statusApproved).length;
-      final rejected = expense.approvals.values.where((v) => v == AppConstants.statusRejected).length;
-      final total    = expense.approvals.length;
-      if (rejected > 0) {
-        approvalSummary = '$rejected rejected · $approved/$total approved';
-      } else {
-        approvalSummary = '$approved/$total approved';
-      }
-    }
-
-    return Card(
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => context.push(
-          '${AppRoutes.expenseDetail}?expenseId=${expense.expenseId}&groupId=$groupId',
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top row: amount + status badge + delete
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
+                if (pending.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  SectionHeader('Waiting for approval',
+                      trailing: StatusChip('${pending.length}', tone: ChipTone.pending, dense: true)),
+                  AppCard(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('$symbol${expense.amount.toStringAsFixed(2)}',
-                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: scheme.primary)),
-                        if (approvalSummary != null) ...[
-                          const SizedBox(height: 2),
-                          Text(approvalSummary,
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: expense.hasRejection ? AppColors.error : Colors.orange,
-                                fontWeight: FontWeight.w600,
-                              )),
+                        for (var i = 0; i < pending.length; i++) ...[
+                          if (i > 0) Divider(height: 1, color: p.hairline),
+                          tile(pending[i]),
+                          _ApprovalProgress(expense: pending[i]),
                         ],
                       ],
                     ),
                   ),
-                  // Status chip
-                  _StatusChip(expense: expense),
-                  if (canDelete) ...[
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon:    Icon(isAdmin
-                          ? Icons.delete_outline_rounded
-                          : Icons.delete_forever_outlined),
-                      color:   AppColors.error,
-                      tooltip: isAdmin ? 'Delete expense' : 'Request deletion',
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () => isAdmin
-                          ? _confirmDirectDelete(context)
-                          : _requestDeleteApproval(context),
+                ],
+                for (final day in days) ...[
+                  const SizedBox(height: 24),
+                  SectionHeader(
+                    dayLabel(day),
+                    trailing: Text(
+                      Money.displayCompact(byDay[day]!.fold<double>(0, (s, e) => s + e.amount), symbol),
+                      style: AppType.money(13.5, weight: FontWeight.w600, color: p.textMuted),
                     ),
-                  ],
+                  ),
+                  AppCard(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < byDay[day]!.length; i++) ...[
+                          if (i > 0) Divider(height: 1, color: p.hairline),
+                          tile(byDay[day]![i]),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
-              ),
-
-              if (expense.comment.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(expense.comment, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
               ],
-
-              const SizedBox(height: 8),
-              Row(children: [
-                Icon(Icons.access_time_rounded, size: 13, color: scheme.onSurfaceVariant),
-                const SizedBox(width: 4),
-                Text(fmt.format(expense.createdAt), style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-              ]),
-
-              if (expense.location?.address != null) ...[
-                const SizedBox(height: 4),
-                Row(children: [
-                  Icon(Icons.location_on_rounded, size: 13, color: AppColors.secondary),
-                  const SizedBox(width: 4),
-                  Expanded(child: Text(expense.location!.address!,
-                      style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
-                      maxLines: 1, overflow: TextOverflow.ellipsis)),
-                ]),
-              ],
-
-              if (expense.splits.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6, runSpacing: 4,
-                  children: expense.splits.values.map((s) {
-                    final memberStatus = expense.approvals[s.userId];
-                    Color? chipColor;
-                    if (memberStatus == AppConstants.statusApproved) chipColor = AppColors.success.withOpacity(0.15);
-                    if (memberStatus == AppConstants.statusRejected)  chipColor = AppColors.error.withOpacity(0.15);
-                    return Chip(
-                      label:         Text(s.name, style: const TextStyle(fontSize: 10)),
-                      padding:       EdgeInsets.zero,
-                      avatar:        const Icon(Icons.person_rounded, size: 12),
-                      visualDensity: VisualDensity.compact,
-                      backgroundColor: chipColor,
-                    );
-                  }).toList(),
-                ),
-              ],
-
-              // Tap hint
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text('Tap for details', style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-                  const SizedBox(width: 2),
-                  Icon(Icons.chevron_right_rounded, size: 14, color: scheme.onSurfaceVariant),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+            ),
     );
   }
 
-  // ── Admin: direct delete ──────────────────────────────────────────────────
-  void _confirmDirectDelete(BuildContext context) {
+  void _showActions(
+    BuildContext context,
+    ExpenseModel e,
+    GroupModel group,
+    String uid,
+    String userName,
+    void Function(ExpenseModel) open,
+  ) {
+    final isAdmin = group.adminId == uid;
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetCtx) {
+        final p = sheetCtx.palette;
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.open_in_new_rounded),
+                  title:   const Text('View details'),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    open(e);
+                  },
+                ),
+                ListTile(
+                  leading:  Icon(Icons.delete_outline_rounded, color: p.negative),
+                  title:    Text(isAdmin ? 'Delete expense' : 'Ask the admin to delete it',
+                      style: TextStyle(color: p.negative)),
+                  subtitle: Text(isAdmin
+                      ? 'Removes it and its unpaid debts'
+                      : 'The admin decides'),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    isAdmin
+                        ? _confirmDirectDelete(context, e, group)
+                        : _requestDeleteApproval(context, e, group, userName);
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _confirmDirectDelete(BuildContext context, ExpenseModel e, GroupModel group) {
+    final expCtrl = context.read<ExpenseController>();
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title:   const Text('Delete Expense?'),
-        content: const Text('This expense and all associated debts will be permanently removed.'),
+      builder: (dialogCtx) => AlertDialog(
+        title:   const Text('Delete this expense?'),
+        content: const Text('It and its unpaid debts are removed for everyone. This can\'t be undone.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
           TextButton(
-            onPressed: () { Navigator.pop(context); expCtrl.deleteExpense(groupId, expense.expenseId); },
-            child: const Text('Delete', style: TextStyle(color: AppColors.error)),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(dialogCtx);
+              final ok = await expCtrl.deleteExpense(group.groupId, e.expenseId);
+              messenger.showSnackBar(SnackBar(
+                content: Text(ok ? 'Expense deleted.' : (expCtrl.errorMessage ?? 'Couldn\'t delete it.')),
+              ));
+            },
+            child: Text('Delete', style: TextStyle(color: dialogCtx.palette.negative)),
           ),
         ],
       ),
     );
   }
 
-  // ── Member: request deletion approval from admin ──────────────────────────
-  void _requestDeleteApproval(BuildContext context) {
+  void _requestDeleteApproval(BuildContext context, ExpenseModel e, GroupModel group, String userName) {
+    final expCtrl = context.read<ExpenseController>();
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Row(children: [
-          Icon(Icons.delete_forever_outlined, color: AppColors.error, size: 22),
-          SizedBox(width: 8),
-          Text('Request Deletion'),
-        ]),
+      builder: (dialogCtx) => AlertDialog(
+        title:   const Text('Ask to delete it?'),
         content: Text(
-          'Send a deletion request to the group admin?\n\n'
-          'Amount: $symbol${expense.amount.toStringAsFixed(2)}'
-          '${expense.comment.isNotEmpty ? "\nNote: ${expense.comment}" : ""}',
+          'We\'ll ask the admin to delete ${Money.displayCompact(e.amount, group.currencySymbol)}'
+          '${e.comment.isNotEmpty ? ' (${e.comment})' : ''}.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
+          TextButton(
             onPressed: () async {
-              Navigator.pop(context);
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(dialogCtx);
               final ok = await expCtrl.requestDeleteExpense(
-                groupId:        groupId,
-                groupName:      groupName,
-                expenseId:      expense.expenseId,
-                adminId:        adminId,
-                memberName:     currentUserName,
-                currencySymbol: symbol,
-                amount:         expense.amount,
+                groupId:        group.groupId,
+                groupName:      group.name,
+                expenseId:      e.expenseId,
+                adminId:        group.adminId,
+                memberName:     userName,
+                currencySymbol: group.currencySymbol,
+                amount:         e.amount,
               );
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                  content: Text(ok
-                      ? 'Deletion request sent to admin.'
-                      : 'Failed to send request. Try again.'),
-                  backgroundColor: ok ? AppColors.success : AppColors.error,
-                ));
-              }
+              messenger.showSnackBar(SnackBar(
+                content: Text(ok ? 'Request sent to the admin.' : (expCtrl.errorMessage ?? 'Couldn\'t send it. Try again.')),
+              ));
             },
-            child: const Text('Send Request', style: TextStyle(color: Colors.white)),
+            child: const Text('Send request'),
           ),
         ],
       ),
@@ -450,33 +248,40 @@ class _ExpenseCard extends StatelessWidget {
   }
 }
 
-class _StatusChip extends StatelessWidget {
+/// "2 of 3 approved" bar under a pending expense.
+class _ApprovalProgress extends StatelessWidget {
   final ExpenseModel expense;
-  const _StatusChip({required this.expense});
+  const _ApprovalProgress({required this.expense});
 
   @override
   Widget build(BuildContext context) {
-    String label;
-    Color  color;
-    if (expense.isApproved) {
-      label = 'Approved';
-      color = AppColors.success;
-    } else if (expense.hasRejection) {
-      label = 'Has Rejection';
-      color = AppColors.error;
-    } else {
-      label = 'Pending';
-      color = Colors.orange;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color:        color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(20),
-        border:       Border.all(color: color.withOpacity(0.4)),
+    final p     = context.palette;
+    final total = expense.approvals.length;
+    final done  = expense.approvals.values.where((v) => v == 'approved').length;
+    final waiting = expense.approvals.entries
+        .where((e) => e.value == 'pending')
+        .map((e) => firstName(expense.splits[e.key]?.name ?? ''))
+        .where((n) => n.isNotEmpty)
+        .toList();
+    if (total == 0) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(58, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(100),
+            child: LinearProgressIndicator(
+              value: done / total, minHeight: 5, color: p.positive, backgroundColor: p.surfaceSunken,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            waiting.isEmpty ? '$done of $total approved' : '$done of $total approved · waiting for ${waiting.join(', ')}',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11.5),
+          ),
+        ],
       ),
-      child: Text(label, style: TextStyle(fontSize: 10, color: color, fontWeight: FontWeight.w700)),
     );
   }
 }

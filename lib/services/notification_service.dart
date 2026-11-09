@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:uuid/uuid.dart';
 import '../models/notification_model.dart';
 import '../utils/app_constants.dart';
+import '../utils/offline.dart';
 
 /// Handles writing and reading in-app notifications from Firestore.
 class NotificationService {
@@ -11,8 +13,14 @@ class NotificationService {
   CollectionReference get _notifs =>
       _db.collection(AppConstants.colNotifications);
 
+  /// Who sent it. Security rules require this to be the signed-in user, and
+  /// only allow notifying people in a tour you're in.
+  String get _senderId => FirebaseAuth.instance.currentUser?.uid ?? '';
+
   // ── Write ─────────────────────────────────────────────────────────────────
-  Future<void> send({
+  /// Returns false if it's still waiting to sync (offline); it's delivered
+  /// once the connection is back.
+  Future<bool> send({
     required String targetUserId,
     required String groupId,
     required String type,
@@ -21,7 +29,8 @@ class NotificationService {
     String groupName = '',
   }) async {
     final id = _uuid.v4();
-    await _notifs.doc(id).set({
+    return saveOrQueue(_notifs.doc(id).set({
+      'senderId':     _senderId,
       'targetUserId': targetUserId,
       'groupId':      groupId,
       'groupName':    groupName,
@@ -30,11 +39,11 @@ class NotificationService {
       'message':      message,
       'isRead':       false,
       'createdAt':    Timestamp.now(),
-    });
+    }), 'send notification');
   }
 
   /// Convenience: send to multiple users at once.
-  Future<void> sendToMany({
+  Future<bool> sendToMany({
     required List<String> targetUserIds,
     required String groupId,
     required String type,
@@ -46,6 +55,7 @@ class NotificationService {
     for (final uid in targetUserIds) {
       final ref = _notifs.doc(_uuid.v4());
       batch.set(ref, {
+        'senderId':     _senderId,
         'targetUserId': uid,
         'groupId':      groupId,
         'groupName':    groupName,
@@ -56,7 +66,7 @@ class NotificationService {
         'createdAt':    Timestamp.now(),
       });
     }
-    await batch.commit();
+    return saveOrQueue(batch.commit(), 'send notifications');
   }
 
   // ── Read ──────────────────────────────────────────────────────────────────
@@ -73,21 +83,9 @@ class NotificationService {
         });
   }
 
-  /// Count of unread notifications (for badge).
-  /// Uses single-field query only (no composite index needed).
-  Stream<int> unreadCountStream(String userId) {
-    return _notifs
-        .where('targetUserId', isEqualTo: userId)
-        .snapshots()
-        .map((s) => s.docs
-            .map(NotificationModel.fromDoc)
-            .where((n) => !n.isRead)
-            .length);
-  }
-
   // ── Mark Read ─────────────────────────────────────────────────────────────
   Future<void> markAsRead(String notificationId) async {
-    await _notifs.doc(notificationId).update({'isRead': true});
+    await saveOrQueue(_notifs.doc(notificationId).update({'isRead': true}), 'mark read');
   }
 
   Future<void> markAllAsRead(String userId) async {
@@ -99,6 +97,6 @@ class NotificationService {
     for (final doc in snap.docs) {
       batch.update(doc.reference, {'isRead': true});
     }
-    await batch.commit();
+    await saveOrQueue(batch.commit(), 'mark all read');
   }
 }

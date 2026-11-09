@@ -67,3 +67,14 @@ key.properties
 
 # APK files
 *.apk
+
+# Rules tests (Node)
+rules_test/node_modules/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+# Cloudflare wrangler local state
+.wrangler/
+# Golden test failure output
+test_screenshots/failures/

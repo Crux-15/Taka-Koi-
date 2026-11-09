@@ -1,91 +1,99 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../controllers/auth_controller.dart';
 import '../../controllers/group_controller.dart';
-import '../../models/group_model.dart';
-import '../../utils/app_colors.dart';
+import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
+import '../../widgets/ui/ui.dart';
 import 'past_tour_detail_view.dart';
 
-/// Read-only list of completed tour groups.
-/// Tapping a card opens PastTourDetailView with full expenses + debts.
-class TourHistoryView extends StatelessWidget {
+/// Tours that have ended. Open one to see what was spent or to settle up.
+class TourHistoryView extends StatefulWidget {
   const TourHistoryView({super.key});
+
+  @override
+  State<TourHistoryView> createState() => _TourHistoryViewState();
+}
+
+class _TourHistoryViewState extends State<TourHistoryView> {
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final uid = context.read<AuthController>().user?.uid;
+    if (uid != null) await context.read<GroupController>().loadHistory(uid);
+    if (mounted) setState(() => _loading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
     final history = context.watch<GroupController>().history;
-    final fmt     = DateFormat('MMM d, y');
+    final p       = context.palette;
+    final t       = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tour History')),
-      body: history.isEmpty
-          ? const EmptyStateWidget(
-              icon:     Icons.history_rounded,
-              title:    'No Past Tours',
-              subtitle: 'Completed tours will appear here.',
-            )
-          : ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: history.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
-              itemBuilder: (_, i) {
-                final g = history[i];
-                return _TourCard(
-                  group: g,
-                  subtitle: '${g.members.length} members â€¢ ${g.currency}',
-                  date: g.inactivatedAt != null ? 'Ended ${fmt.format(g.inactivatedAt!)}' : fmt.format(g.createdAt),
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => PastTourDetailView(group: g)),
+      appBar: AppBar(title: const Text('Past tours'), centerTitle: true),
+      body: _loading && history.isEmpty
+          ? const SkeletonList(count: 3)
+          : history.isEmpty
+              ? const EmptyStateWidget(
+                  icon:     Icons.history_rounded,
+                  title:    'No past tours yet',
+                  subtitle: 'When a tour ends, it moves here. You can still settle up from here.',
+                )
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    padding:          const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                    itemCount:        history.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (_, i) {
+                      final g = history[i];
+                      final members = g.members.values.toList();
+                      return AppCard(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => PastTourDetailView(group: g)),
+                        ),
+                        child: Row(
+                          children: [
+                            const IconTile(Icons.luggage_rounded, size: 48),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(g.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                      style: t.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    g.inactivatedAt != null
+                                        ? 'Ended ${DateFormat('d MMM y').format(g.inactivatedAt!)}'
+                                        : DateFormat('d MMM y').format(g.createdAt),
+                                    style: t.bodySmall,
+                                  ),
+                                  const SizedBox(height: 8),
+                                  AvatarStack(
+                                    names:     members.map((m) => m.name).toList(),
+                                    imageUrls: members.map((m) => m.avatarUrl).toList(),
+                                    size:      22,
+                                    ringColor: p.surface,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right_rounded, color: p.textFaint),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
-    );
-  }
-}
-
-class _TourCard extends StatelessWidget {
-  final GroupModel   group;
-  final String       subtitle;
-  final String       date;
-  final VoidCallback onTap;
-  const _TourCard({required this.group, required this.subtitle, required this.date, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(children: [
-            Container(
-              width: 48, height: 48,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.travel_explore_rounded, color: AppColors.primary),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(group.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                  const SizedBox(height: 2),
-                  Text(subtitle, style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-                  Text(date,    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-          ]),
-        ),
-      ),
+                ),
     );
   }
 }

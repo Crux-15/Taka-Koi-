@@ -1,0 +1,610 @@
+rules_version = '2';
+
+// Security rules for Taka Koi?
+//
+// Everything except a user's own profile needs a verified email address.
+// Group data is visible only to the group's members, and each kind of write
+// is limited to the person allowed to make it:
+//   - only you can approve or reject your own share of an expense,
+//   - only the person being paid can confirm a payment or reduce a debt,
+//   - you can only log payments against your own debts,
+//   - joining a tour needs its current, unexpired join code.
+//
+// Tests: rules_test/ (run with `npm test` there; see rules_test/README.md).
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    function me() {
+      return request.auth.uid;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    function docPath(rest) {
+      return path('/databases/' + database + '/documents/' + rest);
+    }
+
+    function groupPath(gid) {
+      return /databases/$(database)/documents/groups/$(gid);
+    }
+
+    function groupData(gid) {
+      return get(groupPath(gid)).data;
+    }
+
+    function isGroupMember(gid) {
+      return me() in groupData(gid).members;
+    }
+
+    function isGroupAdmin(gid) {
+      return groupData(gid).adminId == me();
+    }
+
+    // The member list is kept twice: as a map (names, avatars) and as a plain
+    // list of ids that tour history can be queried by. They must always agree.
+    function memberIdsMatch(d) {
+      return d.memberIds is list
+        && d.memberIds.hasAll(d.members.keys())
+        && d.members.keys().hasAll(d.memberIds);
+    }
+
+    function validNewMember(m) {
+      return m is map
+        && m.keys().hasOnly(['name', 'avatarUrl', 'joinedAt', 'hasApprovedExpense', 'joinCode'])
+        && m.name is string && m.name.size() <= 100
+        && m.avatarUrl is string && m.avatarUrl.size() <= 2048
+        && m.hasApprovedExpense == false;
+    }
+
+    // lastActivityAt drives auto-ending a tour, so it can only ever be set to
+    // the server's clock (FieldValue.serverTimestamp()), never backdated.
+    function activityStampOk(keys) {
+      return !keys.hasAny(['lastActivityAt']) || incoming().lastActivityAt == request.time;
+    }
+
+    function rejectionReasonsChangedOnly(who) {
+      return incoming().get('rejectionReasons', {})
+        .diff(existing().get('rejectionReasons', {}))
+        .affectedKeys().hasOnly([who]);
+    }
+
+    function approvalsChangedOnly(who) {
+      return who in existing().approvals
+        && who in incoming().approvals
+        && incoming().approvals.diff(existing().approvals).affectedKeys().hasOnly([who]);
+    }
+
+    // ── Users ───────────────────────────────────────────────────────────────
+    // A profile (including its bKash number) is private to its owner. Other
+    // people only ever see a bKash number the owner chose to share through a
+    // bkashRequests document.
+
+    match /users/{userId} {
+      allow read: if signedIn() && me() == userId;
+      allow create: if signedIn() && me() == userId && incoming().uid == userId;
+      allow update: if signedIn() && me() == userId && !changedKeys().hasAny(['uid']);
+      allow delete: if false;
+    }
+
+    // ── Profile photos ──────────────────────────────────────────────────────
+    // A small JPEG (base64) per user, kept in the database instead of paid
+    // file storage. Verified users can see photos; only you can set yours,
+    // even before verifying (profile setup), and it has to stay small.
+    match /avatars/{userId} {
+      allow get: if verified();
+      allow list: if false;
+      allow create, update: if signedIn() && me() == userId
+        && incoming().keys().hasOnly(['data', 'updatedAt'])
+        && incoming().data is string
+        && incoming().data.size() > 0
+        && incoming().data.size() <= 130000;
+      allow delete: if signedIn() && me() == userId;
+    }
+
+    // ── Join codes ──────────────────────────────────────────────────────────
+    // Maps a join code to its group, so someone outside the group can find it
+    // without being able to read or list groups. Codes can be looked up one at
+    // a time, never listed.
+
+    match /groupCodes/{code} {
+      allow get: if verified();
+      allow list: if false;
+      allow create: if verified()
+        && getAfter(groupPath(incoming().groupId)).data.adminId == me()
+        && getAfter(groupPath(incoming().groupId)).data.groupCode == code;
+      allow update: if false;
+      allow delete: if verified()
+        && (resource == null || groupData(existing().groupId).adminId == me());
+    }
+
+    // ── Groups (tours) ──────────────────────────────────────────────────────
+
+    function validNewGroup(gid) {
+      let d = incoming();
+      return d.adminId == me()
+        && d.creatorId == me()
+        && d.status == 'active'
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 100
+        && d.members.keys().hasOnly([me()])
+        && me() in d.members
+        && validNewMember(d.members[me()])
+        && d.memberIds == [me()]
+        && d.lastActivityAt == request.time
+        && getAfter(docPath('groupCodes/' + d.groupCode)).data.groupId == gid;
+    }
+
+    // Any member: bump lastActivityAt and/or mark *their own* entry as having
+    // an approved expense (that flag stops the admin removing them).
+    function memberUpdate() {
+      let keys = changedKeys();
+      return me() in existing().members
+        && keys.hasOnly(['lastActivityAt', 'members'])
+        && activityStampOk(keys)
+        && (!keys.hasAny(['members']) || raisesOwnApprovedFlag());
+    }
+
+    function raisesOwnApprovedFlag() {
+      let before = existing().members;
+      let after = incoming().members;
+      return after.diff(before).affectedKeys().hasOnly([me()])
+        && me() in after
+        && after[me()].diff(before[me()]).affectedKeys().hasOnly(['hasApprovedExpense'])
+        && after[me()].hasApprovedExpense == true;
+    }
+
+    // Someone outside the group adds only themselves, quoting the current code
+    // before it expires.
+    function joinWithCode() {
+      let r = existing();
+      let d = incoming();
+      let keys = changedKeys();
+      return !(me() in r.members)
+        && r.status == 'active'
+        && request.time < r.groupCodeExpiresAt
+        && keys.hasOnly(['members', 'memberIds', 'lastActivityAt'])
+        && activityStampOk(keys)
+        && d.members.diff(r.members).affectedKeys().hasOnly([me()])
+        && me() in d.members
+        && validNewMember(d.members[me()])
+        && d.members[me()].get('joinCode', '') == r.groupCode
+        && memberIdsMatch(d);
+    }
+
+    // A member hides an ended tour from their history by leaving it.
+    function leaveEndedGroup() {
+      let r = existing();
+      let d = incoming();
+      return r.status == 'inactive'
+        && me() in r.members
+        && !(me() in d.members)
+        && changedKeys().hasOnly(['members', 'memberIds'])
+        && d.members.diff(r.members).affectedKeys().hasOnly([me()])
+        && memberIdsMatch(d);
+    }
+
+    // Any member's phone may end a tour automatically, but only once the
+    // server agrees there's been no activity for 4 days.
+    function systemEnd() {
+      let r = existing();
+      let d = incoming();
+      return me() in r.members
+        && changedKeys().hasOnly(['status', 'inactivatedAt', 'inactivatedBy'])
+        && r.status == 'active'
+        && d.status == 'inactive'
+        && d.inactivatedBy == 'system'
+        && d.inactivatedAt == request.time
+        && request.time > r.lastActivityAt + duration.value(4, 'd');
+    }
+
+    // Older tours were created before memberIds existed; any member can fill
+    // it in from the member map.
+    function backfillMemberIds() {
+      return me() in existing().members
+        && changedKeys().hasOnly(['memberIds'])
+        && memberIdsMatch(incoming());
+    }
+
+    function adminUpdate(gid) {
+      let d = incoming();
+      let keys = changedKeys();
+      return existing().adminId == me()
+        && keys.hasOnly(['groupCode', 'groupCodeExpiresAt', 'adminId', 'status',
+                         'inactivatedAt', 'inactivatedBy', 'members', 'memberIds'])
+        && (!keys.hasAny(['adminId']) || d.adminId in d.members)
+        && (!keys.hasAny(['status', 'inactivatedAt', 'inactivatedBy']) || adminEnds())
+        && (!keys.hasAny(['members', 'memberIds']) || adminRemovesOne(gid))
+        && (!keys.hasAny(['groupCode', 'groupCodeExpiresAt']) || newCodeRegistered(gid));
+    }
+
+    function adminEnds() {
+      return existing().status == 'active'
+        && incoming().status == 'inactive'
+        && incoming().inactivatedBy == 'admin'
+        && incoming().inactivatedAt == request.time;
+    }
+
+    // The admin removes exactly one other member, who either has no approved
+    // expenses or has asked to leave.
+    function adminRemovesOne(gid) {
+      let before = existing().members;
+      let after = incoming().members;
+      let gone = before.keys().removeAll(after.keys());
+      return gone.size() == 1
+        && after.diff(before).affectedKeys().hasOnly(gone)
+        && gone[0] != me()
+        && (before[gone[0]].get('hasApprovedExpense', false) != true
+            || exists(docPath('groups/' + gid + '/leaveRequests/' + gone[0])))
+        && memberIdsMatch(incoming());
+    }
+
+    function newCodeRegistered(gid) {
+      let d = incoming();
+      return d.groupCode is string
+        && d.groupCodeExpiresAt < request.time + duration.value(1, 'd')
+        && getAfter(docPath('groupCodes/' + d.groupCode)).data.groupId == gid;
+    }
+
+    // ── Expenses ────────────────────────────────────────────────────────────
+
+    // Most people one expense can be split between (MAX_SPLIT = 50; the
+    // app's AppConstants.maxSplitMembers must match). The rules language has
+    // no loops, so the shares are added up one by one.
+    function splitsTotal(splits) {
+      let v = splits.values();
+      return (v.size() > 0 ? v[0].amount : 0) +
+        (v.size() > 1 ? v[1].amount : 0) +
+        (v.size() > 2 ? v[2].amount : 0) +
+        (v.size() > 3 ? v[3].amount : 0) +
+        (v.size() > 4 ? v[4].amount : 0) +
+        (v.size() > 5 ? v[5].amount : 0) +
+        (v.size() > 6 ? v[6].amount : 0) +
+        (v.size() > 7 ? v[7].amount : 0) +
+        (v.size() > 8 ? v[8].amount : 0) +
+        (v.size() > 9 ? v[9].amount : 0) +
+        (v.size() > 10 ? v[10].amount : 0) +
+        (v.size() > 11 ? v[11].amount : 0) +
+        (v.size() > 12 ? v[12].amount : 0) +
+        (v.size() > 13 ? v[13].amount : 0) +
+        (v.size() > 14 ? v[14].amount : 0) +
+        (v.size() > 15 ? v[15].amount : 0) +
+        (v.size() > 16 ? v[16].amount : 0) +
+        (v.size() > 17 ? v[17].amount : 0) +
+        (v.size() > 18 ? v[18].amount : 0) +
+        (v.size() > 19 ? v[19].amount : 0) +
+        (v.size() > 20 ? v[20].amount : 0) +
+        (v.size() > 21 ? v[21].amount : 0) +
+        (v.size() > 22 ? v[22].amount : 0) +
+        (v.size() > 23 ? v[23].amount : 0) +
+        (v.size() > 24 ? v[24].amount : 0) +
+        (v.size() > 25 ? v[25].amount : 0) +
+        (v.size() > 26 ? v[26].amount : 0) +
+        (v.size() > 27 ? v[27].amount : 0) +
+        (v.size() > 28 ? v[28].amount : 0) +
+        (v.size() > 29 ? v[29].amount : 0) +
+        (v.size() > 30 ? v[30].amount : 0) +
+        (v.size() > 31 ? v[31].amount : 0) +
+        (v.size() > 32 ? v[32].amount : 0) +
+        (v.size() > 33 ? v[33].amount : 0) +
+        (v.size() > 34 ? v[34].amount : 0) +
+        (v.size() > 35 ? v[35].amount : 0) +
+        (v.size() > 36 ? v[36].amount : 0) +
+        (v.size() > 37 ? v[37].amount : 0) +
+        (v.size() > 38 ? v[38].amount : 0) +
+        (v.size() > 39 ? v[39].amount : 0) +
+        (v.size() > 40 ? v[40].amount : 0) +
+        (v.size() > 41 ? v[41].amount : 0) +
+        (v.size() > 42 ? v[42].amount : 0) +
+        (v.size() > 43 ? v[43].amount : 0) +
+        (v.size() > 44 ? v[44].amount : 0) +
+        (v.size() > 45 ? v[45].amount : 0) +
+        (v.size() > 46 ? v[46].amount : 0) +
+        (v.size() > 47 ? v[47].amount : 0) +
+        (v.size() > 48 ? v[48].amount : 0) +
+        (v.size() > 49 ? v[49].amount : 0);
+    }
+
+    // Shares are whole cents stored as doubles, so allow for float rounding.
+    function sameAmount(a, b) {
+      return math.abs(a - b) < 0.01;
+    }
+
+    function validNewExpense(gid) {
+      let g = groupData(gid);
+      let d = incoming();
+      let others = d.splits.keys().removeAll([me()]);
+      return me() in g.members
+        && g.status == 'active'
+        && d.loggedBy == me()
+        && d.amount is number && d.amount > 0
+        && d.splits is map && d.splits.size() > 0
+        && d.splits.size() <= 50
+        && d.splits.keys().hasOnly(g.members.keys())
+        && sameAmount(splitsTotal(d.splits), d.amount)
+        && d.approvals is map
+        && (others.size() == 0
+              ? (d.status == 'approved' && d.approvals.size() == 0)
+              : (d.status == 'pending'
+                 && d.approvals.keys().hasOnly(others)
+                 && others.hasOnly(d.approvals.keys())
+                 && d.approvals.values().hasOnly(['pending'])));
+    }
+
+    // A split member approves their own share (not the last approval).
+    function approveOwn() {
+      return changedKeys().hasOnly(['approvals'])
+        && approvalsChangedOnly(me())
+        && incoming().approvals[me()] == 'approved';
+    }
+
+    // The last approval finalises the expense. Everyone else must already have
+    // approved, and the approver's own debt must be created in the same write.
+    function finaliseOwn(gid, eid) {
+      let d = incoming();
+      return changedKeys().hasOnly(['approvals', 'status', 'approvedAt'])
+        && approvalsChangedOnly(me())
+        && d.approvals.values().hasOnly(['approved'])
+        && d.status == 'approved'
+        && (d.splits.get(me(), {'amount': 0}).amount < 0.005
+            || existsAfter(docPath('groups/' + gid + '/debts/' + eid + '_' + me())));
+    }
+
+    // Approvals made offline can all arrive without any being the "last" one,
+    // leaving an expense everyone approved but still pending. The logger then
+    // completes it; each debt it creates in the same write is checked by
+    // validNewDebt (pending → approved, right amount, owed to the logger).
+    function finaliseApproved() {
+      let r = existing();
+      return r.loggedBy == me()
+        && r.approvals.size() > 0
+        && r.approvals.values().hasOnly(['approved'])
+        && changedKeys().hasOnly(['status', 'approvedAt'])
+        && incoming().status == 'approved';
+    }
+
+    function rejectOwn() {
+      return changedKeys().hasOnly(['approvals', 'rejectionReasons'])
+        && approvalsChangedOnly(me())
+        && incoming().approvals[me()] == 'rejected'
+        && rejectionReasonsChangedOnly(me());
+    }
+
+    // The logger asks one member (named in requestedAgainFor) to look again.
+    function loggerRequestsAgain() {
+      let d = incoming();
+      let who = d.get('requestedAgainFor', '');
+      return existing().loggedBy == me()
+        && changedKeys().hasOnly(['approvals', 'rejectionReasons', 'requestedAgainFor'])
+        && approvalsChangedOnly(who)
+        && d.approvals[who] == 'pending'
+        && rejectionReasonsChangedOnly(who);
+    }
+
+    // The logger changes one member's share (and their own, which absorbs the
+    // difference); that member has to approve again.
+    function loggerEditsShare() {
+      let d = incoming();
+      let who = d.get('requestedAgainFor', '');
+      return existing().loggedBy == me()
+        && changedKeys().hasOnly(['splits', 'loggerIncluded', 'approvals',
+                                  'rejectionReasons', 'requestedAgainFor'])
+        && who in d.splits
+        && d.splits.diff(existing().splits).affectedKeys().hasOnly([who, me()])
+        // the logger's share absorbs the change, so the total stays the same
+        && sameAmount(
+             d.splits[who].amount + d.splits.get(me(), {'amount': 0}).amount,
+             existing().splits[who].amount + existing().splits.get(me(), {'amount': 0}).amount)
+        && approvalsChangedOnly(who)
+        && d.approvals[who] == 'pending'
+        && rejectionReasonsChangedOnly(who);
+    }
+
+    // ── Debts ───────────────────────────────────────────────────────────────
+
+    // Debts are only created while their expense is being finalised, for a
+    // member who approved, owed to the logger, for that member's share.
+    function validNewDebt(gid, debtId) {
+      let d = incoming();
+      let expense = docPath('groups/' + gid + '/expenses/' + d.sourceExpenseId);
+      let before = get(expense).data;
+      let after = getAfter(expense).data;
+      return debtId == d.sourceExpenseId + '_' + d.fromUserId
+        && before.status == 'pending'
+        && after.status == 'approved'
+        && d.fromUserId in after.splits
+        && d.fromUserId != after.loggedBy
+        && after.approvals.get(d.fromUserId, '') == 'approved'
+        && d.toUserId == after.loggedBy
+        && d.originalAmount is number && d.originalAmount > 0
+        && math.abs(d.originalAmount - after.splits[d.fromUserId].amount) < 0.006
+        && d.remainingAmount == d.originalAmount
+        && d.status == 'active';
+    }
+
+    // Only the person owed can reduce (never raise) what they're owed.
+    function creditorReduces() {
+      let d = incoming();
+      let r = existing();
+      return r.status == 'active'
+        && changedKeys().hasOnly(['remainingAmount', 'status', 'settledAt'])
+        && d.remainingAmount is number
+        && d.remainingAmount >= 0
+        && d.remainingAmount <= r.remainingAmount
+        && d.status in ['active', 'settled'];
+    }
+
+    // ── Payments ────────────────────────────────────────────────────────────
+
+    function validNewPayment(gid) {
+      let d = incoming();
+      let debt = get(docPath('groups/' + gid + '/debts/' + d.debtId)).data;
+      return d.fromUserId == me()
+        && debt.fromUserId == me()
+        && debt.toUserId == d.toUserId
+        && debt.status == 'active'
+        && d.amount is number && d.amount > 0
+        && d.amount <= debt.remainingAmount + 0.005
+        && d.status == 'pending';
+    }
+
+    // Confirming a payment must reduce its debt by the payment, in the same write.
+    function receiverApproves(gid) {
+      let r = existing();
+      let debt = docPath('groups/' + gid + '/debts/' + r.debtId);
+      return incoming().status == 'approved'
+        && changedKeys().hasOnly(['status', 'approvedAt'])
+        && math.abs(getAfter(debt).data.remainingAmount
+                    - (get(debt).data.remainingAmount - r.amount)) < 0.006;
+    }
+
+    function receiverRejects() {
+      return incoming().status == 'rejected'
+        && changedKeys().hasOnly(['status', 'rejectionNote']);
+    }
+
+    match /groups/{groupId} {
+      allow get: if verified() && resource != null && me() in existing().members;
+      allow list: if verified() && me() in resource.data.memberIds;
+      allow create: if verified() && validNewGroup(groupId);
+      allow update: if verified() && (
+           memberUpdate()
+        || joinWithCode()
+        || leaveEndedGroup()
+        || systemEnd()
+        || backfillMemberIds()
+        || adminUpdate(groupId));
+      allow delete: if false;
+
+      match /expenses/{expenseId} {
+        allow read: if verified() && isGroupMember(groupId);
+        allow create: if verified() && validNewExpense(groupId);
+        allow update: if verified()
+          && isGroupMember(groupId)
+          && existing().status == 'pending'
+          && (approveOwn()
+              || finaliseOwn(groupId, expenseId)
+              || finaliseApproved()
+              || rejectOwn()
+              || loggerRequestsAgain()
+              || loggerEditsShare());
+        allow delete: if verified() && isGroupAdmin(groupId);
+      }
+
+      match /debts/{debtId} {
+        allow read: if verified() && isGroupMember(groupId);
+        allow create: if verified() && isGroupMember(groupId) && validNewDebt(groupId, debtId);
+        allow update: if verified() && existing().toUserId == me() && creditorReduces();
+        allow delete: if verified()
+          && isGroupAdmin(groupId)
+          && !existsAfter(docPath('groups/' + groupId + '/expenses/' + existing().sourceExpenseId))
+          && existing().remainingAmount == existing().originalAmount;
+      }
+
+      match /payments/{paymentId} {
+        allow read: if verified() && isGroupMember(groupId);
+        allow create: if verified() && isGroupMember(groupId) && validNewPayment(groupId);
+        allow update: if verified()
+          && existing().toUserId == me()
+          && existing().status == 'pending'
+          && (receiverApproves(groupId) || receiverRejects());
+        allow delete: if false;
+      }
+
+      match /auditLog/{entryId} {
+        allow read: if verified() && isGroupMember(groupId);
+        allow create: if verified() && isGroupMember(groupId) && incoming().actorId == me();
+        allow update, delete: if false;
+      }
+
+      match /leaveRequests/{memberId} {
+        allow get: if verified() && (memberId == me() || isGroupAdmin(groupId));
+        allow list: if verified() && isGroupAdmin(groupId);
+        allow create, update: if verified()
+          && memberId == me()
+          && isGroupMember(groupId)
+          && incoming().memberId == me()
+          && incoming().status == 'pending';
+        allow delete: if verified() && (memberId == me() || isGroupAdmin(groupId));
+      }
+    }
+
+    // ── Notifications ───────────────────────────────────────────────────────
+    // You can only notify people in a tour you're in (an admin can also notify
+    // someone they just let leave), and only you can read your own.
+
+    function validNotification() {
+      let d = incoming();
+      let g = groupData(d.groupId);
+      return d.senderId == me()
+        && d.targetUserId is string
+        && me() in g.members
+        && (d.targetUserId in g.members || g.adminId == me())
+        && d.isRead == false
+        && d.type is string
+        && d.message is string && d.message.size() <= 500;
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if verified() && existing().targetUserId == me();
+      allow create: if verified() && validNotification();
+      allow update: if verified() && existing().targetUserId == me() && changedKeys().hasOnly(['isRead']);
+      allow delete: if verified() && existing().targetUserId == me();
+    }
+
+    // ── bKash number requests ───────────────────────────────────────────────
+    // Id: {groupId}_{requesterId}_{targetId}. The number is copied in only
+    // when the target accepts, so it's never readable from their profile.
+
+    function requesterAsks(requestId) {
+      let d = incoming();
+      let g = groupData(d.groupId);
+      return d.requesterId == me()
+        && requestId == d.groupId + '_' + me() + '_' + d.targetId
+        && d.targetId != me()
+        && me() in g.members
+        && d.targetId in g.members
+        && d.status == 'pending'
+        && !('number' in d);
+    }
+
+    function targetAnswers() {
+      let d = incoming();
+      return existing().targetId == me()
+        && changedKeys().hasOnly(['status', 'number', 'respondedAt'])
+        && ((d.status == 'accepted'
+             && (d.get('number', null) == null
+                 || (d.number is string && d.number.size() <= 20)))
+            || (d.status == 'declined' && !('number' in d)));
+    }
+
+    match /bkashRequests/{requestId} {
+      allow get: if verified()
+        && (requestId.split('_')[1] == me() || requestId.split('_')[2] == me());
+      allow list: if verified()
+        && (resource.data.targetId == me() || resource.data.requesterId == me());
+      allow create: if verified() && requesterAsks(requestId);
+      allow update: if verified() && (requesterAsks(requestId) || targetAnswers());
+      allow delete: if false;
+    }
+  }
+}

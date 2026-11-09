@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../utils/app_constants.dart';
 
 /// In-app notification document stored in the top-level `notifications` collection.
 class NotificationModel {
@@ -63,25 +62,4 @@ class NotificationModel {
     createdAt:      createdAt,
   );
 
-  /// Returns an icon-name hint for the notification type.
-  String get iconHint {
-    switch (type) {
-      case AppConstants.notifExpensePendingApproval: return 'pending_actions';
-      case AppConstants.notifExpenseApproved:        return 'check_circle';
-      case AppConstants.notifExpenseRejected:        return 'cancel';
-      case AppConstants.notifPaymentApproved:        return 'payments';
-      case AppConstants.notifPaymentRejected:        return 'money_off';
-      case AppConstants.notifJoinApproved:           return 'group_add';
-      case AppConstants.notifJoinRejected:           return 'person_remove';
-      case AppConstants.notifBkashRequested:         return 'phone_android';
-      case AppConstants.notifBkashAddRequired:       return 'add_card';
-      case AppConstants.notifBkashAccepted:          return 'check_circle';
-      case AppConstants.notifAdminTransferRequired:  return 'admin_panel_settings';
-      case AppConstants.notifGroupAutoDeactivated:   return 'timer_off';
-      case AppConstants.notifDeleteExpenseRequest:   return 'delete_forever';
-      case AppConstants.notifDeleteExpenseApproved:  return 'delete_sweep';
-      case AppConstants.notifDeleteExpenseRejected:  return 'delete_outline';
-      default:                                       return 'notifications';
-    }
-  }
 }

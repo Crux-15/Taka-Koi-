@@ -7,6 +7,7 @@ import '../../models/expense_model.dart';
 import '../../utils/app_colors.dart';
 import '../../utils/app_constants.dart';
 import '../../widgets/common/app_button.dart';
+import '../../utils/money.dart';
 
 /// Admin-only screen to review a member's expense deletion request.
 /// Loaded when admin taps a [notifDeleteExpenseRequest] notification.
@@ -44,7 +45,7 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
     if (!mounted) return;
     setState(() => _loading = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content:         Text(ok ? 'Expense deleted successfully.' : 'Failed. Try again.'),
+      content:         Text(ok ? 'Expense deleted successfully.' : (expCtrl.errorMessage ?? 'Failed. Try again.')),
       backgroundColor: ok ? AppColors.success : AppColors.error,
     ));
     if (ok) Navigator.of(context).pop();
@@ -82,7 +83,7 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Delete Request Review'),
+        title: const Text('Delete request'),
         centerTitle: true,
       ),
       body: StreamBuilder<ExpenseModel>(
@@ -106,7 +107,7 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
                   const SizedBox(height: 16),
                   OutlinedButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Go Back'),
+                    child: const Text('Go back'),
                   ),
                 ],
               ),
@@ -124,9 +125,9 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color:        AppColors.error.withOpacity(0.1),
+                    color:        AppColors.error.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(14),
-                    border:       Border.all(color: AppColors.error.withOpacity(0.3)),
+                    border:       Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                   ),
                   child: Row(children: [
                     const Icon(Icons.delete_forever_outlined, color: AppColors.error, size: 28),
@@ -135,8 +136,8 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Deletion Request',
-                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.error)),
+                          const Text('Deletion Request',
+                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15, color: AppColors.error)),
                           const SizedBox(height: 2),
                           Text('${widget.memberName} wants to delete this expense.',
                               style: TextStyle(fontSize: 13, color: scheme.onSurfaceVariant)),
@@ -161,7 +162,7 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
                         _DetailRow(
                           icon:  Icons.attach_money_rounded,
                           label: 'Amount',
-                          value: '$symbol${expense.amount.toStringAsFixed(2)}',
+                          value: Money.display(expense.amount, symbol),
                           valueColor: scheme.primary,
                           valueBold:  true,
                         ),
@@ -203,10 +204,10 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
                             children: expense.splits.values.map((s) {
                               final status = expense.approvals[s.userId];
                               Color? chipColor;
-                              if (status == AppConstants.statusApproved) chipColor = AppColors.success.withOpacity(0.15);
-                              if (status == AppConstants.statusRejected)  chipColor = AppColors.error.withOpacity(0.15);
+                              if (status == AppConstants.statusApproved) chipColor = AppColors.success.withValues(alpha: 0.15);
+                              if (status == AppConstants.statusRejected)  chipColor = AppColors.error.withValues(alpha: 0.15);
                               return Chip(
-                                label:           Text('${s.name} · $symbol${s.amount.toStringAsFixed(2)}',
+                                label:           Text('${s.name} · ${Money.display(s.amount, symbol)}',
                                     style: const TextStyle(fontSize: 11)),
                                 avatar:          const Icon(Icons.person_rounded, size: 14),
                                 backgroundColor: chipColor,
@@ -226,14 +227,14 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color:        AppColors.warning.withOpacity(0.1),
+                    color:        AppColors.warning.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
-                    border:       Border.all(color: AppColors.warning.withOpacity(0.3)),
+                    border:       Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
                   ),
-                  child: Row(children: [
-                    const Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 18),
-                    const SizedBox(width: 8),
-                    const Expanded(
+                  child: const Row(children: [
+                    Icon(Icons.warning_amber_rounded, color: AppColors.warning, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(
                       child: Text(
                         'Approving will permanently delete this expense and all associated debts.',
                         style: TextStyle(fontSize: 12),
@@ -250,7 +251,7 @@ class _ExpenseDeleteReviewViewState extends State<ExpenseDeleteReviewView> {
                   // Reject button
                   OutlinedButton.icon(
                     icon:  const Icon(Icons.close_rounded),
-                    label: const Text('Reject Deletion'),
+                    label: const Text('Keep the expense'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
                       side:    const BorderSide(color: AppColors.error, width: 1.5),

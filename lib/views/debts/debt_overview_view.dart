@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../controllers/auth_controller.dart';
 import '../../controllers/debt_controller.dart';
 import '../../controllers/group_controller.dart';
 import '../../models/debt_model.dart';
+import '../../models/group_model.dart';
 import '../../models/payment_model.dart';
-import '../../utils/app_colors.dart';
 import '../../utils/app_router.dart';
+import '../../utils/display_helpers.dart';
+import '../../utils/money.dart';
+import '../../widgets/common/app_button.dart';
+import '../../widgets/common/avatar_widget.dart';
 import '../../widgets/common/empty_state_widget.dart';
 import '../../widgets/common/loading_widget.dart';
+import '../../widgets/ui/ui.dart';
 
-/// Debt overview screen with I Owe / Owed to Me tabs.
+/// Balances: who you owe, who owes you, and payments waiting for you.
 class DebtOverviewView extends StatefulWidget {
   const DebtOverviewView({super.key});
+
   @override
   State<DebtOverviewView> createState() => _DebtOverviewViewState();
 }
@@ -26,441 +31,509 @@ class _DebtOverviewViewState extends State<DebtOverviewView> with SingleTickerPr
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final uid = context.read<AuthController>().user?.uid;
       final gid = context.read<GroupController>().activeGroup?.groupId;
       if (uid != null && gid != null) {
         context.read<DebtController>().listenToDebts(gid, uid);
+        // Open on whichever side needs attention.
+        final debts = context.read<DebtController>();
+        if (debts.isLoaded && debts.iOwe.isEmpty && (debts.owedToMe.isNotEmpty || debts.pendingForMe.isNotEmpty)) {
+          _tabs.index = 1;
+        }
       }
     });
   }
 
   @override
-  void dispose() { _tabs.dispose(); super.dispose(); }
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final debtCtrl  = context.watch<DebtController>();
-    final groupCtrl = context.watch<GroupController>();
-    final group     = groupCtrl.activeGroup;
-    final symbol    = group?.currencySymbol ?? '৳';
+    final debtCtrl = context.watch<DebtController>();
+    final group    = context.watch<GroupController>().activeGroup;
+    final p        = context.palette;
+    final t        = Theme.of(context).textTheme;
 
-    // Compute totals for tab labels
-    final totalIOwe    = debtCtrl.iOwe.fold<double>(0, (s, d) => s + d.remainingAmount);
-    final totalOwedMe  = debtCtrl.owedToMe.fold<double>(0, (s, d) => s + d.remainingAmount);
+    if (group == null) return const Scaffold(body: Center(child: AppLoader()));
+    final symbol = group.currencySymbol;
+    final toConfirm = debtCtrl.pendingForMe.length;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Debt Settlement'),
-        bottom: TabBar(
-          controller: _tabs,
-          tabs: [
-            Tab(text: 'I Owe ($symbol${totalIOwe.toStringAsFixed(0)})'),
-            Tab(text: 'Owed to Me ($symbol${totalOwedMe.toStringAsFixed(0)})'),
-          ],
-        ),
-      ),
-      body: group == null
-          ? const Center(child: AppLoader())
-          : TabBarView(
+      body: NestedScrollView(
+        headerSliverBuilder: (_, __) => [
+          SliverSafeArea(
+            bottom: false,
+            sliver: SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Balances', style: t.headlineMedium),
+                    const SizedBox(height: 4),
+                    Text('Pay what you owe and confirm what you receive.', style: t.bodyMedium?.copyWith(color: p.textMuted)),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SummaryTile(
+                            label:   'You owe',
+                            cents:   debtCtrl.iOweCents,
+                            symbol:  symbol,
+                            color:   p.negative,
+                            icon:    Icons.north_east_rounded,
+                            loaded:  debtCtrl.isLoaded,
+                            onTap:   () => _tabs.animateTo(0),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _SummaryTile(
+                            label:   'Owed to you',
+                            cents:   debtCtrl.owedToMeCents,
+                            symbol:  symbol,
+                            color:   p.positive,
+                            icon:    Icons.south_west_rounded,
+                            loaded:  debtCtrl.isLoaded,
+                            onTap:   () => _tabs.animateTo(1),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: PillTabBar(
               controller: _tabs,
-              children: [
-                _IOweTab(debts: debtCtrl.iOwe, netDebts: debtCtrl.netDebts, symbol: symbol, groupId: group.groupId),
-                _OwedToMeTab(debts: debtCtrl.owedToMe, pendingPayments: debtCtrl.pendingForMe, symbol: symbol, groupId: group.groupId),
+              margin:     const EdgeInsets.fromLTRB(20, 18, 20, 4),
+              tabs: [
+                const Tab(text: 'You owe'),
+                Tab(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Owed to you'),
+                      if (toConfirm > 0) ...[
+                        const SizedBox(width: 6),
+                        StatusChip('$toConfirm', tone: ChipTone.positive, dense: true),
+                      ],
+                    ],
+                  ),
+                ),
               ],
             ),
+          ),
+        ],
+        body: !debtCtrl.isLoaded
+            ? const SkeletonList(count: 3, itemHeight: 120)
+            : TabBarView(
+                controller: _tabs,
+                children: [
+                  _IOweTab(debtCtrl: debtCtrl, group: group),
+                  _OwedToMeTab(debtCtrl: debtCtrl, group: group),
+                ],
+              ),
+      ),
     );
   }
 }
 
-// ── I Owe Tab ─────────────────────────────────────────────────────────────────
-class _IOweTab extends StatelessWidget {
-  final List<DebtModel>   debts;
-  final Map<String, double> netDebts;
-  final String            symbol;
-  final String            groupId;
-  const _IOweTab({required this.debts, required this.netDebts, required this.symbol, required this.groupId});
+class _SummaryTile extends StatelessWidget {
+  final String label;
+  final int cents;
+  final String symbol;
+  final Color color;
+  final IconData icon;
+  final bool loaded;
+  final VoidCallback onTap;
+
+  const _SummaryTile({
+    required this.label,
+    required this.cents,
+    required this.symbol,
+    required this.color,
+    required this.icon,
+    required this.loaded,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final p = context.palette;
+    return AppCard(
+      onTap:   onTap,
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 24, height: 24,
+                decoration: BoxDecoration(color: p.soft(color), shape: BoxShape.circle),
+                child: Icon(icon, size: 14, color: color),
+              ),
+              const SizedBox(width: 8),
+              Text(label, style: Theme.of(context).textTheme.labelMedium),
+            ],
+          ),
+          const SizedBox(height: 10),
+          loaded
+              ? MoneyText(Money.fromCents(cents), symbol: symbol, size: 21, color: cents == 0 ? p.textMuted : p.text)
+              : const Skeleton(width: 90, height: 20),
+        ],
+      ),
+    );
+  }
+}
+
+// ── You owe ───────────────────────────────────────────────────────────────────
+class _IOweTab extends StatelessWidget {
+  final DebtController debtCtrl;
+  final GroupModel group;
+  const _IOweTab({required this.debtCtrl, required this.group});
+
+  @override
+  Widget build(BuildContext context) {
+    final debts = debtCtrl.iOwe;
     if (debts.isEmpty) {
       return const EmptyStateWidget(
-        icon:     Icons.sentiment_very_satisfied_rounded,
-        title:    'All Settled!',
-        subtitle: 'You don\'t owe anyone right now.',
+        icon:     Icons.verified_rounded,
+        title:    'You\'re all clear',
+        subtitle: 'You don\'t owe anyone in this tour right now.',
       );
     }
-
-    // Group debts by toUserId
+    final symbol  = group.currencySymbol;
     final grouped = <String, List<DebtModel>>{};
     for (final d in debts) {
       grouped.putIfAbsent(d.toUserId, () => []).add(d);
     }
+    final people = grouped.keys.toList()
+      ..sort((a, b) => _sum(grouped[b]!).compareTo(_sum(grouped[a]!)));
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount:     grouped.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, i) {
-        final uid   = grouped.keys.elementAt(i);
-        final dList = grouped[uid]!;
-        final net   = netDebts[uid] ?? 0;
-        final personName = dList.first.toUserName;
-        return _DebtPersonCard(
-          personName: personName,
-          debts:      dList,
-          netAmount:  net,
-          symbol:     symbol,
-          isIOwe:     true,
-          onPayTap:   net > 0 ? () => context.push('${AppRoutes.logPayment}?debtId=${dList.first.debtId}') : null,
+      padding:          const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      itemCount:        people.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 14),
+      itemBuilder: (context, i) {
+        final uid       = people[i];
+        final list      = grouped[uid]!;
+        final name      = list.first.toUserName;
+        final owed      = _sum(list);
+        final netCents  = Money.toCents(debtCtrl.netDebts[uid] ?? 0);
+        final waiting   = list.fold<int>(0, (s, d) => s + debtCtrl.pendingCentsFor(d.debtId));
+        // Each debt is paid on its own, so Pay is offered while any of them
+        // still has room, even if they also owe you (else mutual debts never close).
+        final payable   = list.where((d) => debtCtrl.availableCentsFor(d) > 0).firstOrNull;
+
+        return _PersonCard(
+          name:      name,
+          avatarUrl: group.members[uid]?.avatarUrl,
+          caption:   'You owe ${firstName(name)}',
+          cents:     owed,
+          symbol:    symbol,
+          tone:      context.palette.negative,
+          items:     list,
+          notes: [
+            if (waiting > 0)
+              _Note(Icons.schedule_rounded, ChipTone.pending,
+                  '${Money.displayCompact(Money.fromCents(waiting), symbol)} paid, waiting for ${firstName(name)} to confirm'),
+            if (netCents != owed)
+              _Note(Icons.swap_horiz_rounded, ChipTone.info,
+                  netCents > 0
+                      ? 'They owe you too. Net, you owe ${Money.displayCompact(Money.fromCents(netCents), symbol)}'
+                      : netCents < 0
+                          ? 'They owe you more. Net, they owe you ${Money.displayCompact(Money.fromCents(-netCents), symbol)}'
+                          : 'They owe you the same amount, so overall you\'re even'),
+          ],
+          action: payable == null
+              ? null
+              : AppButton(
+                  label:     'Pay ${firstName(name)}',
+                  icon:      Icons.arrow_outward_rounded,
+                  height:    48,
+                  onPressed: () => context.push('${AppRoutes.logPayment}?debtId=${payable.debtId}'),
+                ),
         );
       },
     );
   }
+
+  static int _sum(List<DebtModel> l) => l.fold(0, (s, d) => s + d.remainingCents);
 }
 
-// ── Owed to Me Tab ────────────────────────────────────────────────────────────
+// ── Owed to you ───────────────────────────────────────────────────────────────
 class _OwedToMeTab extends StatelessWidget {
-  final List<DebtModel>    debts;
-  final List<PaymentModel> pendingPayments;
-  final String             symbol;
-  final String             groupId;
-  const _OwedToMeTab({required this.debts, required this.pendingPayments, required this.symbol, required this.groupId});
+  final DebtController debtCtrl;
+  final GroupModel group;
+  const _OwedToMeTab({required this.debtCtrl, required this.group});
 
   @override
   Widget build(BuildContext context) {
-    final debtCtrl = context.read<DebtController>();
-    if (debts.isEmpty && pendingPayments.isEmpty) {
+    final debts   = debtCtrl.owedToMe;
+    final pending = debtCtrl.pendingForMe;
+    final symbol  = group.currencySymbol;
+    if (debts.isEmpty && pending.isEmpty) {
       return const EmptyStateWidget(
-        icon:     Icons.account_balance_wallet_outlined,
-        title:    'Nothing Owed to You',
-        subtitle: 'When someone owes you money, it appears here.',
+        icon:     Icons.savings_rounded,
+        title:    'Nobody owes you',
+        subtitle: 'When someone owes you for an expense you paid, it shows up here.',
       );
     }
+    final grouped = <String, List<DebtModel>>{};
+    for (final d in debts) {
+      grouped.putIfAbsent(d.fromUserId, () => []).add(d);
+    }
+
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
       children: [
-        // Pending payments awaiting my approval
-        if (pendingPayments.isNotEmpty) ...[
-          Text('Pending Approvals', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          ...pendingPayments.map((p) => _PendingPaymentCard(
-            payment: p,
-            symbol:  symbol,
-            onApprove: () => debtCtrl.approvePayment(groupId, p, symbol),
-            onReject:  (note) => debtCtrl.rejectPayment(groupId, p, note, symbol),
-          )),
-          const SizedBox(height: 16),
+        if (pending.isNotEmpty) ...[
+          const SectionHeader('Confirm these payments'),
+          for (final pay in pending)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _PendingPaymentCard(payment: pay, group: group, debtCtrl: debtCtrl),
+            ),
+          const SizedBox(height: 14),
         ],
-        // Active debts owed to me
-        if (debts.isNotEmpty) ...[
-          Text('Active Debts', style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: 8),
-          ...debts.map((d) => Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _DirectionalDebtFlow(
-                    senderName:   d.fromUserName,
-                    receiverName: 'You',
-                    amount:       d.remainingAmount,
-                    symbol:       symbol,
-                    isIOwe:       false,
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Original: $symbol${d.originalAmount.toStringAsFixed(2)}',
-                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
-                      ),
-                      const Text(
-                        'Awaiting settlement',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.owedToMe),
-                      ),
-                    ],
-                  ),
-                ],
+        if (grouped.isNotEmpty) ...[
+          const SectionHeader('Still to pay you'),
+          for (final uid in grouped.keys)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: _PersonCard(
+                name:      grouped[uid]!.first.fromUserName,
+                avatarUrl: group.members[uid]?.avatarUrl,
+                caption:   '${firstName(grouped[uid]!.first.fromUserName)} owes you',
+                cents:     grouped[uid]!.fold(0, (s, d) => s + d.remainingCents),
+                symbol:    symbol,
+                tone:      context.palette.positive,
+                items:     grouped[uid]!,
               ),
             ),
-          )),
         ],
       ],
     );
   }
 }
 
-class _DebtPersonCard extends StatelessWidget {
-  final String          personName;
-  final List<DebtModel> debts;
-  final double          netAmount;
-  final String          symbol;
-  final bool            isIOwe;
-  final VoidCallback?   onPayTap;
-  const _DebtPersonCard({
-    required this.personName,
-    required this.debts,
-    required this.netAmount,
-    required this.symbol,
-    required this.isIOwe,
-    this.onPayTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Visual Directional Flow Connector
-            _DirectionalDebtFlow(
-              senderName:   isIOwe ? 'You' : personName,
-              receiverName: isIOwe ? personName : 'You',
-              amount:       netAmount,
-              symbol:       symbol,
-              isIOwe:       isIOwe,
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 10),
-
-            // Itemized remaining breakdown
-            ...debts.map((d) => Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Debt item remaining', style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-                  Text('$symbol${d.remainingAmount.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            )),
-            if (onPayTap != null) ...[
-              const SizedBox(height: 12),
-              ElevatedButton.icon(
-                onPressed: onPayTap,
-                icon:      const Icon(Icons.payments_rounded, size: 16),
-                label:     const Text('Log Payment'),
-                style:     ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 44)),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
+class _Note {
+  final IconData icon;
+  final ChipTone tone;
+  final String text;
+  const _Note(this.icon, this.tone, this.text);
 }
 
-/// Directional Flow Connector showing sender avatar, flow arrow + amount, and receiver avatar
-class _DirectionalDebtFlow extends StatelessWidget {
-  final String senderName;
-  final String receiverName;
-  final double amount;
+/// One person's debts with you: total, the expenses behind it, notes, action.
+class _PersonCard extends StatelessWidget {
+  final String name;
+  final String? avatarUrl;
+  final String caption;
+  final int cents;
   final String symbol;
-  final bool isIOwe;
+  final Color tone;
+  final List<DebtModel> items;
+  final List<_Note> notes;
+  final Widget? action;
 
-  const _DirectionalDebtFlow({
-    required this.senderName,
-    required this.receiverName,
-    required this.amount,
+  const _PersonCard({
+    required this.name,
+    required this.avatarUrl,
+    required this.caption,
+    required this.cents,
     required this.symbol,
-    required this.isIOwe,
+    required this.tone,
+    required this.items,
+    this.notes = const [],
+    this.action,
   });
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final flowColor = isIOwe ? AppColors.iOwe : AppColors.owedToMe;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: flowColor.withValues(alpha: isDark ? 0.12 : 0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: flowColor.withValues(alpha: isDark ? 0.3 : 0.2),
-          width: 1,
-        ),
-      ),
-      child: Row(
+    final p = context.palette;
+    final t = Theme.of(context).textTheme;
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Sender
-          Expanded(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: isIOwe ? scheme.primary.withValues(alpha: 0.2) : scheme.surfaceContainerHighest,
-                  child: Text(
-                    senderName.isNotEmpty ? senderName[0].toUpperCase() : '?',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: isIOwe ? scheme.primary : scheme.onSurface,
-                    ),
-                  ),
+          Row(
+            children: [
+              AvatarWidget(name: name, imageUrl: avatarUrl, size: 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                        style: t.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(caption, style: t.bodySmall),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    senderName,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+              ),
+              MoneyText(Money.fromCents(cents), symbol: symbol, size: 20, color: tone),
+            ],
           ),
-
-          // Flow Connector Arrow with Amount
+          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: flowColor,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: flowColor.withValues(alpha: 0.3),
-                  blurRadius: 4,
-                  offset: const Offset(0, 1.5),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(color: p.surfaceRaised, borderRadius: BorderRadius.circular(14)),
+            child: Column(
               children: [
-                const Icon(Icons.arrow_forward_rounded, size: 12, color: Colors.white),
-                const SizedBox(width: 4),
-                Text(
-                  '$symbol${amount.abs().toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Receiver
-          Expanded(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Text(
-                    receiverName,
-                    textAlign: TextAlign.end,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: !isIOwe ? scheme.primary.withValues(alpha: 0.2) : scheme.surfaceContainerHighest,
-                  child: Text(
-                    receiverName.isNotEmpty ? receiverName[0].toUpperCase() : '?',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: !isIOwe ? scheme.primary : scheme.onSurface,
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0) Divider(height: 1, color: p.hairline),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 9),
+                    child: Row(
+                      children: [
+                        Icon(Icons.receipt_rounded, size: 15, color: p.textFaint),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            items[i].remainingCents < Money.toCents(items[i].originalAmount)
+                                ? 'Share from ${timeAgo(items[i].createdAt)} · part paid'
+                                : 'Share from ${timeAgo(items[i].createdAt)}',
+                            style: t.bodySmall?.copyWith(color: p.textMuted),
+                          ),
+                        ),
+                        if (items[i].remainingCents < Money.toCents(items[i].originalAmount)) ...[
+                          Text(Money.displayCompact(items[i].originalAmount, symbol),
+                              style: t.bodySmall?.copyWith(decoration: TextDecoration.lineThrough, color: p.textFaint)),
+                          const SizedBox(width: 6),
+                        ],
+                        MoneyText(items[i].remainingAmount, symbol: symbol, size: 13.5, weight: FontWeight.w600, compact: true),
+                      ],
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
+          for (final n in notes) ...[
+            const SizedBox(height: 10),
+            InfoBanner(n.text, icon: n.icon, tone: n.tone),
+          ],
+          if (action != null) ...[
+            const SizedBox(height: 14),
+            action!,
+          ],
         ],
       ),
     );
   }
 }
 
-class _PendingPaymentCard extends StatelessWidget {
-  final PaymentModel      payment;
-  final String            symbol;
-  final VoidCallback      onApprove;
-  final void Function(String) onReject;
-  const _PendingPaymentCard({required this.payment, required this.symbol, required this.onApprove, required this.onReject});
+class _PendingPaymentCard extends StatefulWidget {
+  final PaymentModel payment;
+  final GroupModel group;
+  final DebtController debtCtrl;
+  const _PendingPaymentCard({required this.payment, required this.group, required this.debtCtrl});
+
+  @override
+  State<_PendingPaymentCard> createState() => _PendingPaymentCardState();
+}
+
+class _PendingPaymentCardState extends State<_PendingPaymentCard> {
+  bool _busy = false;
+
+  Future<void> _approve() async {
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await widget.debtCtrl.approvePayment(widget.group.groupId, widget.payment, widget.group.currencySymbol);
+    if (mounted) setState(() => _busy = false);
+    messenger.showSnackBar(SnackBar(
+      content: Text(ok ? doneMessage('Payment confirmed.', queued: widget.debtCtrl.savedOffline) : (widget.debtCtrl.lastError ?? 'Couldn\'t confirm. Try again.')),
+    ));
+  }
+
+  Future<void> _reject() async {
+    final ctrl = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title:   const Text('Reject this payment?'),
+        content: TextField(
+          controller: ctrl,
+          autofocus:  true,
+          maxLines:   2,
+          decoration: const InputDecoration(hintText: 'Why? (optional, e.g. "only got ৳400")'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx, ctrl.text.trim()),
+            child: Text('Reject', style: TextStyle(color: dialogCtx.palette.negative)),
+          ),
+        ],
+      ),
+    );
+    if (note == null || !mounted) return;
+    setState(() => _busy = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await widget.debtCtrl.rejectPayment(widget.group.groupId, widget.payment, note, widget.group.currencySymbol);
+    if (mounted) setState(() => _busy = false);
+    messenger.showSnackBar(SnackBar(
+      content: Text(ok ? 'Payment rejected. They can log the right amount.' : (widget.debtCtrl.lastError ?? 'Couldn\'t reject. Try again.')),
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
-    final fmt = DateFormat('MMM d • h:mm a');
-    return Card(
-      margin: const EdgeInsets.only(bottom: 10),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${payment.fromUserName} paid you', style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text(fmt.format(payment.loggedAt), style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-                    ],
-                  ),
+    final p   = context.palette;
+    final t   = Theme.of(context).textTheme;
+    final pay = widget.payment;
+    return AppCard(
+      borderColor: p.positive.withValues(alpha: 0.35),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              AvatarWidget(name: pay.fromUserName, imageUrl: widget.group.members[pay.fromUserId]?.avatarUrl, size: 44),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${firstName(pay.fromUserName)} says they paid you',
+                        style: t.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    Text(
+                      pay.bkashNumber != null ? 'Via bKash ${pay.bkashNumber} · ${timeAgo(pay.loggedAt)}' : timeAgo(pay.loggedAt),
+                      style: t.bodySmall,
+                    ),
+                  ],
                 ),
-                Text('$symbol${payment.amount.toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.owedToMe)),
-              ],
-            ),
-            if (payment.bkashNumber != null) ...[
-              const SizedBox(height: 6),
-              Text('Via Bkash: ${payment.bkashNumber}', style: const TextStyle(fontSize: 12)),
+              ),
+              MoneyText(pay.amount, symbol: widget.group.currencySymbol, size: 20, color: p.positive),
             ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _showRejectDialog(context),
-                    style: OutlinedButton.styleFrom(foregroundColor: AppColors.error, side: const BorderSide(color: AppColors.error), minimumSize: const Size(0, 40)),
-                    child: const Text('Reject'),
-                  ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(label: 'Reject', outlined: true, height: 46, onPressed: _busy ? null : _reject),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: AppButton(
+                  label:     'Confirm',
+                  icon:      Icons.check_rounded,
+                  color:     p.positive,
+                  height:    46,
+                  isLoading: _busy,
+                  onPressed: _approve,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: onApprove,
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.success, minimumSize: const Size(0, 40)),
-                    child: const Text('Confirm'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showRejectDialog(BuildContext context) {
-    final ctrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title:   const Text('Reject Payment?'),
-        content: TextField(controller: ctrl, decoration: const InputDecoration(hintText: 'Reason (optional)'), maxLines: 2),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () { Navigator.pop(context); onReject(ctrl.text.trim()); },
-            child: const Text('Reject', style: TextStyle(color: AppColors.error)),
+              ),
+            ],
           ),
         ],
       ),

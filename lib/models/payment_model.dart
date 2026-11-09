@@ -36,7 +36,6 @@ class PaymentModel {
 
   bool get isPending  => status == 'pending';
   bool get isApproved => status == 'approved';
-  bool get isRejected => status == 'rejected';
 
   factory PaymentModel.fromDoc(DocumentSnapshot doc, {String? groupId}) {
     final data = doc.data() as Map<String, dynamic>;

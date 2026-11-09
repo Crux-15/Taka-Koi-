@@ -5,7 +5,6 @@ class AppConstants {
   // ── App Info ──────────────────────────────────────────────────────────────
   static const String appName        = 'Taka Koi?';
   static const String appTagline     = 'Balance Every Journey';
-  static const String appVersion     = '1.0.0';
 
   // ── Firestore Collections ─────────────────────────────────────────────────
   static const String colUsers         = 'users';
@@ -14,9 +13,10 @@ class AppConstants {
   static const String colDebts         = 'debts';
   static const String colPayments      = 'payments';
   static const String colNotifications = 'notifications';
-  static const String colJoinRequests  = 'joinRequests';
   static const String colAuditLog      = 'auditLog';
   static const String colBkashRequests = 'bkashRequests';
+  /// Join code → groupId lookup, so outsiders can join without reading groups.
+  static const String colGroupCodes    = 'groupCodes';
 
   // ── Group Rules ───────────────────────────────────────────────────────────
   /// Hours before the group join-code expires and must be refreshed.
@@ -30,6 +30,11 @@ class AppConstants {
 
   // ── Expense ───────────────────────────────────────────────────────────────
   static const int maxCommentLength = 200;
+
+  /// Most people one expense can be split between. The security rules add up
+  /// the shares one by one, so they need a fixed upper limit (keep in step
+  /// with MAX_SPLIT in firestore.rules).
+  static const int maxSplitMembers = 50;
 
   // ── Status Strings ────────────────────────────────────────────────────────
   static const String statusPending  = 'pending';
@@ -51,10 +56,10 @@ class AppConstants {
   static const String notifExpensePendingApproval = 'expense_pending_approval';
   static const String notifExpenseApproved      = 'expense_approved';
   static const String notifExpenseRejected      = 'expense_rejected';
+  /// A payer logged a payment that the receiver needs to confirm.
+  static const String notifPaymentPending       = 'payment_pending';
   static const String notifPaymentApproved      = 'payment_approved';
   static const String notifPaymentRejected      = 'payment_rejected';
-  static const String notifJoinApproved         = 'join_approved';
-  static const String notifJoinRejected         = 'join_rejected';
   static const String notifBkashRequested       = 'bkash_requested';
   static const String notifBkashAddRequired     = 'bkash_add_required';
   static const String notifBkashAccepted        = 'bkash_accepted';
