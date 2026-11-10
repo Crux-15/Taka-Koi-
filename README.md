@@ -408,6 +408,6 @@ You may download and use the app for personal, non-commercial purposes. Copying,
 
 Made with 💛 for friends who travel together
 
-<sub>Built with Flutter, Firebase and Claude Code</sub>
+<sub><sup>Assisted by Claude Code</sup></sub>
 
 </div>
