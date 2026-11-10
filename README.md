@@ -319,7 +319,7 @@ No Play Store needed:
 3. Tap the downloaded file, then **Install**
 4. Open **Taka Koi?** and sign in 🎉
 
-<sub>"Install blocked"? Go to Settings → Security → Install unknown apps and allow your browser. The app asks for location (to tag expenses), photos (for your profile picture) and internet access.</sub>
+Works offline once you've signed in. "Install blocked"? Allow your browser in **Settings → Security → Install unknown apps**.
 
 </td>
 <td valign="top">
@@ -327,14 +327,17 @@ No Play Store needed:
 No App Store needed:
 
 1. Open **[taka-koi.pages.dev](https://taka-koi.pages.dev)** in **Safari**
-2. Tap **Share**, then **Add to Home Screen**, then **Add**
-3. Open **Taka Koi** from the new icon and sign in there 🎉
+2. Tap the **Share** button
+3. Choose **Add to Home Screen**, then **Add**
+4. Open **Taka Koi** from the icon and sign in 🎉
 
-It opens full screen like an app and works offline once you've signed in. The icon keeps its own sign-in, separate from Safari.
-
-<p align="center"><img src="docs/screenshots/iphone-install.png" width="170" alt="The install guide on iPhone"/></p>
+Works offline once you've signed in. Use the icon, not the Safari tab: it keeps its own sign-in.
 
 </td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/home.png" width="180" alt="Taka Koi on Android"/></td>
+<td align="center"><img src="docs/screenshots/iphone-install.png" width="180" alt="The install guide on iPhone"/></td>
 </tr>
 </table>
 
