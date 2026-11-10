@@ -341,7 +341,7 @@ Works offline once you've signed in. Use the icon, not the Safari tab: it keeps 
 </tr>
 </table>
 
-> **Updating from v1.0.0 on Android:** v1.1.0 is signed with a new key, so Android won't install it over the old version. Open the old app once while online (so anything logged offline syncs), uninstall it, then install v1.1.0 and sign in. Your tours are stored online, so nothing is lost.
+> **Updating on Android:** from v1.1.0 or later, just install the new APK over it. From v1.0.0, which was signed with an older key, open the old app once while online (so anything logged offline syncs), uninstall it, then install the latest version and sign in. Your tours are stored online, so nothing is lost.
 
 ---
 
