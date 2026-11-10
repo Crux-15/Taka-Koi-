@@ -1,22 +1,27 @@
 <div align="center">
 
-<img src="assets/images/taka_koi_logo.jpg" alt="Taka Koi? logo" width="140"/>
+<img src="assets/images/taka_koi_logo.jpg" alt="Taka Koi? logo" width="120"/>
 
 # Taka Koi?
 
-### Split trip expenses with friends. No spreadsheets. No mental math. No awkward conversations.
+### Split trip expenses with friends. Everyone approves their own share, the app does the math, and it works with no signal.
 
 *"Taka Koi?" means "Where's the money?" in Bengali* 😄
 
-[![Download APK](https://img.shields.io/badge/Download-APK%20v1.1.0-FFD700?style=for-the-badge&logo=android&logoColor=black)](https://github.com/Crux-15/Taka-Koi-/releases/latest/download/Taka-Koi.apk)
+[![Download for Android](https://img.shields.io/badge/Download-Android%20APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/Crux-15/Taka-Koi-/releases/latest/download/Taka-Koi.apk)
+[![Open on iPhone](https://img.shields.io/badge/Open-iPhone%20web%20app-111111?style=for-the-badge&logo=apple&logoColor=white)](https://taka-koi.pages.dev)
 
-![Flutter](https://img.shields.io/badge/Flutter-02569B?style=for-the-badge&logo=flutter&logoColor=white)
-![Dart](https://img.shields.io/badge/Dart-0175C2?style=for-the-badge&logo=dart&logoColor=white)
-![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
-![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)
-![License](https://img.shields.io/badge/License-Proprietary-red?style=for-the-badge)
+[![Release](https://img.shields.io/github/v/release/Crux-15/Taka-Koi-?style=flat-square&color=F0C24B&label=release)](https://github.com/Crux-15/Taka-Koi-/releases/latest)
+![Flutter](https://img.shields.io/badge/Flutter-02569B?style=flat-square&logo=flutter&logoColor=white)
+![Dart](https://img.shields.io/badge/Dart-0175C2?style=flat-square&logo=dart&logoColor=white)
+![Firebase](https://img.shields.io/badge/Firebase-FFCA28?style=flat-square&logo=firebase&logoColor=black)
+![Cloudflare Pages](https://img.shields.io/badge/Cloudflare%20Pages-F38020?style=flat-square&logo=cloudflarepages&logoColor=white)
+![Offline first](https://img.shields.io/badge/Offline-first-1F8A70?style=flat-square)
+![License](https://img.shields.io/badge/License-Proprietary-B3261E?style=flat-square)
 
-[The story](#-the-story) · [Features](#-features) · [How it works](#-how-it-works) · [Architecture](#-architecture) · [Install](#-install-on-android) · [Build from source](#-build-from-source) · [Roadmap](#-roadmap)
+<img src="docs/banner.png" alt="Taka Koi? screens: log an expense, approve your share, home, balances and pay" width="100%"/>
+
+[The story](#-the-story) · [Highlights](#-highlights) · [Screenshots](#-screenshots) · [How it works](#-how-it-works) · [Under the hood](#-under-the-hood) · [Get the app](#-get-the-app) · [Roadmap](#-roadmap)
 
 </div>
 
@@ -32,63 +37,81 @@ So I built **Taka Koi?**: log an expense the moment it happens, let the app do t
 
 It works offline, because trips don't promise good signal.
 
-## 📸 Screenshots
+---
 
-| Home | Log expense | Approve a share | Balances |
-|:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/home.png" width="200"/> | <img src="docs/screenshots/log-expense.png" width="200"/> | <img src="docs/screenshots/approval.png" width="200"/> | <img src="docs/screenshots/debts.png" width="200"/> |
+## ✨ Highlights
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🤝 Nothing is a debt until you say yes
+Each friend approves **only their own share**. Debts appear once everyone agrees, so nobody gets billed by surprise.
+
+</td>
+<td width="33%" valign="top">
+
+### 📶 Works with no signal
+Log expenses, approve shares and confirm payments **offline**. Everything syncs by itself when you're back online.
+
+</td>
+<td width="33%" valign="top">
+
+### 🧮 Exact to the paisa
+Money is counted in whole paisa, so shares **always add up** and debts settle to exactly zero.
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+### 💸 Settle up with bKash
+Pay in full or in parts, and the person you paid **confirms they got it**. Ask a friend for their bKash number in one tap.
+
+</td>
+<td valign="top">
+
+### 📱 Android and iPhone
+A free Android app, and the **same app on iPhone** as a home-screen web app. No App Store needed.
+
+</td>
+<td valign="top">
+
+### 🔐 Secure by design
+The **database itself** enforces who can do what, so even a modified app can't approve someone else's share.
+
+</td>
+</tr>
+</table>
 
 ---
 
-## ✨ Features
+## 📸 Screenshots
 
-### 👥 Tour groups
-- Create a tour, pick its currency (BDT, USD, EUR, GBP, INR, PKR, MYR or AED) and invite friends with a **6-character code**
-- Join codes **expire after 1 hour** and the admin can refresh them, so a leaked code doesn't stay valid
-- Members join instantly with the code
-- Admin tools: remove members who have no approved expenses, transfer admin rights, end the tour
-- Members can request to leave, and the admin approves
-- Tours **end automatically after 4 days of inactivity** (checked against the server's clock, and payments count as activity)
-- Tour history with a per-member spending breakdown for every past tour
+<div align="center">
 
-### 💸 Expenses
-- Log an amount and a note, with **GPS location and a readable address** captured automatically
-- **Equal split** or **custom split** between up to 50 people, with an option to include or exclude yourself and a live split preview
-- Shares are worked out in whole paisa, so they always add up to the total exactly
-- **Consent-based approval:** every member reviews and approves only their own share
-- Rejected a share? Add a reason, and the logger can re-request it or (for custom splits) adjust the amount and ask again
-- Deleting an expense is direct for the admin, and a request for everyone else. Once money has been paid against it, it can't be deleted
-- Home feed with a live member ranking by total spent
+<table>
+<tr>
+<td align="center"><img src="docs/screenshots/home.png" width="190" alt="Home"/><br/><sub><b>Home</b><br/>Your balance and what needs you</sub></td>
+<td align="center"><img src="docs/screenshots/log-expense.png" width="190" alt="Log an expense"/><br/><sub><b>Log an expense</b><br/>Equal or custom split, GPS tagged</sub></td>
+<td align="center"><img src="docs/screenshots/approve.png" width="190" alt="Approve your share"/><br/><sub><b>Approve your share</b><br/>Only you decide on yours</sub></td>
+<td align="center"><img src="docs/screenshots/balances.png" width="190" alt="Balances"/><br/><sub><b>Balances</b><br/>Net amount per person</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/pay.png" width="190" alt="Pay"/><br/><sub><b>Pay</b><br/>Full or partial, bKash or cash</sub></td>
+<td align="center"><img src="docs/screenshots/your-expenses.png" width="190" alt="Your expenses"/><br/><sub><b>Your expenses</b><br/>See who has approved</sub></td>
+<td align="center"><img src="docs/screenshots/activity.png" width="190" alt="Activity"/><br/><sub><b>Activity</b><br/>Tap to act on any request</sub></td>
+<td align="center"><img src="docs/screenshots/profile.png" width="190" alt="Profile"/><br/><sub><b>Profile</b><br/>Join code and private bKash number</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="docs/screenshots/home-light.png" width="190" alt="Home in light mode"/><br/><sub><b>Light mode</b><br/>Both themes are first-class</sub></td>
+<td align="center"><img src="docs/screenshots/log-expense-light.png" width="190" alt="Log an expense in light mode"/><br/><sub><b>Log an expense</b><br/>Light mode</sub></td>
+<td align="center"><img src="docs/screenshots/approve-light.png" width="190" alt="Approve in light mode"/><br/><sub><b>Approve</b><br/>Light mode</sub></td>
+<td align="center"><img src="docs/screenshots/large-text.png" width="190" alt="Home with large text"/><br/><sub><b>Large text</b><br/>Readable at 130% text size</sub></td>
+</tr>
+</table>
 
-### 🏦 Debts and settlement
-- Debts are created automatically once an expense is fully approved
-- **I owe** and **Owed to me** tabs with a **net balance per person**
-- Pay in full or **in parts**. The app blocks amounts above what's still owed, counting payments that are waiting for confirmation
-- The person being paid **confirms or rejects** each payment (with a note); after a rejection the payer logs the corrected amount
-- A debt closes automatically when its balance reaches zero
-- **Settle up after the tour ends:** past tours show what you still owe or are owed, with Pay and Confirm right there
-- You can't leave a tour (or hide it) while you still owe or are owed money there, so nobody gets stranded with a debt they can no longer see
-
-### 📲 bKash number sharing
-- Ask a member for their bKash number inside the app, right from the Pay screen
-- If they haven't added one, they add it while accepting (it's checked as a valid 11-digit number)
-- Once they accept, the number appears with a **one-tap copy** button
-- Numbers stay private: only the person who asked can read a shared number, and nobody can read another member's profile
-
-> The app tracks and confirms who paid whom. The money itself moves through bKash or cash, outside the app.
-
-### 🔔 Notifications
-- Real-time in-app notifications for every action: approvals, rejections, payments, leave requests, bKash requests
-- Tap a notification to jump straight to the item that needs your decision
-- Unread badge on the navigation bar
-
-### 🔐 Accounts and experience
-- A short "How Taka Koi works" guide for people starting their first tour
-- Works with larger phone text sizes (checked at 130%) and screen readers (labelled buttons)
-- **Google Sign-In**, or email registration confirmed through a **Firebase verification link**, password setup and profile photo upload
-- Forgot-password flow via Firebase
-- Light and dark themes (remembered between launches)
-- **Works offline:** logging an expense or a payment saves on the phone and syncs when you're back online. Approving needs a connection, and the app says so instead of spinning
+</div>
 
 ---
 
@@ -115,42 +138,121 @@ flowchart LR
 
 ---
 
-## 🏗️ Architecture
+## 🚀 Features
 
-Clean **MVC** with a dedicated service layer, so UI, state and data access stay separate. The database enforces the same permission model through **Firestore security rules**, so a modified app can't get around it.
+<details open>
+<summary><b>👥 Tour groups</b></summary>
+
+- Create a tour, pick its currency (BDT, USD, EUR, GBP, INR, PKR, MYR or AED) and invite friends with a **6-character code**
+- Join codes **expire after 1 hour** and the admin can refresh them, so a leaked code doesn't stay valid
+- Admin tools: remove members who have no approved expenses, transfer admin rights, end the tour
+- Members can ask to leave, and the admin approves
+- Tours **end automatically after 4 days of inactivity**, checked against the server's clock
+- Tour history with a per-member spending breakdown for every past tour
+
+</details>
+
+<details open>
+<summary><b>💸 Expenses</b></summary>
+
+- Log an amount and a note (with one-tap suggestions like Food, Transport or Hotel), and the **GPS location and a readable address** are captured automatically
+- **Equal or custom split** between up to 50 people, with a live split preview
+- **Consent-based approval:** every member reviews and approves only their own share
+- Rejected a share? Add a reason, and the logger can ask again or (for custom splits) adjust the amount
+- Once money has been paid against an expense, it can't be deleted
+- Home feed with a live member ranking by total spent
+
+</details>
+
+<details open>
+<summary><b>🏦 Debts and settlement</b></summary>
+
+- Debts are created automatically once an expense is fully approved
+- **I owe** and **Owed to me** tabs with a **net balance per person**
+- Pay in full or **in parts**; the app blocks amounts above what's still owed, counting payments waiting for confirmation
+- The person being paid **confirms or rejects** each payment, with a note
+- **Settle up after the tour ends:** past tours show what you still owe or are owed, with Pay and Confirm right there
+- You can't leave a tour while you still owe or are owed money there, so nobody is left with a debt they can't see
+
+</details>
+
+<details>
+<summary><b>📲 bKash number sharing</b></summary>
+
+- Ask a member for their bKash number right from the Pay screen
+- They choose whether to share it, and can add one while accepting (checked as a valid 11-digit number)
+- Once shared, the number appears with a **one-tap copy** button
+- Numbers stay private: only the person who asked can read a shared number
+
+> The app tracks and confirms who paid whom. The money itself moves through bKash or cash, outside the app.
+
+</details>
+
+<details>
+<summary><b>🔔 Notifications, accounts and accessibility</b></summary>
+
+- Real-time in-app notifications for approvals, rejections, payments, leave requests and bKash requests; tap one to jump straight to it
+- **Google Sign-In**, or email sign-up confirmed through a verification link, with password reset
+- Profile photos, light and dark themes, and a short "How Taka Koi works" guide for first-timers
+- Works with larger phone text sizes (checked at 130%) and screen readers (labelled buttons)
+
+</details>
+
+---
+
+## 🧠 Under the hood
+
+Clean **MVC** with a dedicated service layer, so UI, state and data access stay separate. One Flutter codebase ships as the Android app and as the iPhone web app.
 
 ```mermaid
 flowchart LR
-    V["Views<br/>23 screens"] --> C["Controllers<br/>ChangeNotifier + Provider"]
-    C --> S["Services<br/>data access"]
-    S --> F[("Cloud Firestore<br/>real-time + offline cache")]
-    S --> A["Firebase Auth<br/>Google + email"]
-    S --> G["Device GPS<br/>geolocator + geocoding"]
-    F -. "live snapshots" .-> C
+    AND["Android app<br/>APK"] --> App
+    WEB["iPhone web app<br/>Cloudflare Pages + offline worker"] --> App
+    subgraph App["One Flutter codebase"]
+        direction TB
+        V["Views<br/>23 screens"] --> C["Controllers<br/>ChangeNotifier + Provider"] --> S["Services<br/>data access"]
+    end
+    App --> F[("Cloud Firestore<br/>real-time + offline cache")]
+    App --> A["Firebase Auth<br/>Google + email"]
+    App --> G["Device GPS<br/>geolocator + geocoding"]
     R["Security rules<br/>firestore.rules"] -. guards .-> F
 ```
 
-### Project structure
+### Engineering highlights
+
+| Challenge | How it's solved |
+|---|---|
+| **Trips have no signal** | Firestore offline persistence plus offline-first actions: approvals run as transactions when online and as queued writes when offline, with the security rules as the referee when they sync |
+| **A modified app could cheat** | Every permission (approve only your own share, only the receiver confirms a payment, shares add up to the total) is enforced by **Firestore security rules**, not just the UI |
+| **Two people approving at once** | Transactions, so approvals can't overwrite each other and a payment can't reduce a debt twice |
+| **Rounding errors** | Whole-paisa integer maths; equal splits spread the odd paisa so shares always match the total |
+| **iPhone without the App Store** | The same app as an installable web app: a versioned service worker keeps the app on the phone so it opens offline, and Google sign-in runs through the site's own address so Safari's privacy rules don't block it |
+| **Zero running cost** | Firebase's free plan plus Cloudflare Pages; profile photos are shrunk to under 90 KB and stored in Firestore instead of paid file storage |
+| **Leaked invite codes** | Join codes expire after an hour and live in their own collection, so outsiders never read a tour |
+| **Trust** | Expense events go to an audit log with SHA-256 hashes |
+
+<details>
+<summary><b>Project structure</b></summary>
 
 ```
 lib/
 ├── main.dart              # Firebase init, offline persistence, providers, theme
 ├── controllers/           # State and business logic
 ├── models/                # User, Group, Expense, Debt, Payment, Notification, bKash share
-├── services/              # Firestore, Auth, profile photos, bKash sharing and GPS access
-├── utils/                 # Router, theme, colours, constants, money and split maths, offline helpers
-├── views/                 # Screens, grouped by feature
-│   ├── auth/  splash/  group/  debts/  notifications/  shell/
-│   ├── expenses/          # home_view.dart + home/ (its cards and sections)
-│   └── profile/           # profile_view.dart + widgets/ (join code, invite sheet)
-└── widgets/common/        # Reusable components (buttons, avatars, banners)
+├── services/              # Firestore, Auth, profile photos, bKash sharing, GPS, offline actions
+├── utils/                 # Router, theme, colours, money and split maths, offline helpers
+├── views/                 # Screens, grouped by feature (auth, group, expenses, debts, profile, ...)
+└── widgets/               # Design-system components and shared widgets
 firestore.rules            # Database security rules
-web/                       # Website: home-screen icon, manifest, offline worker (sw.js)
+web/                       # Web app: icons, manifest, offline worker (sw.js)
 cloudflare/functions/      # Website sign-in pass-through to Firebase (/__/auth)
 tool/build_web.mjs         # Builds (and with --deploy publishes) the website
 ```
 
-### Firestore data model
+</details>
+
+<details>
+<summary><b>Firestore data model</b></summary>
 
 ```
 users/{uid}                      # readable by its owner only
@@ -166,166 +268,125 @@ bkashRequests/{groupId_requester_owner}
 avatars/{uid}                    # profile photo, a small JPEG (≤90 KB)
 ```
 
-### Design system
+</details>
 
-"Obsidian & Gold": warm near-black and porcelain surfaces, one restrained gold accent, and clear money colours (green = owed to you, red = you owe, amber = waiting). Light and dark mode are both first-class.
+<details>
+<summary><b>Design system: "Obsidian & Gold"</b></summary>
+
+Warm near-black and porcelain surfaces, one restrained gold accent, and clear money colours (green = owed to you, red = you owe, amber = waiting). Light and dark mode are both first-class.
 
 | Piece | Where |
 |---|---|
-| Colours (resolved per light/dark mode via `context.palette`) | `lib/utils/app_palette.dart`, raw values in `app_colors.dart` |
-| Type: Montserrat for headings and amounts, Work Sans for text (bundled, open-licensed) | `lib/utils/app_typography.dart`, `assets/fonts/` |
+| Colours, resolved per light/dark mode via `context.palette` | `lib/utils/app_palette.dart`, `app_colors.dart` |
+| Montserrat for headings and amounts, Work Sans for text (bundled, open-licensed) | `lib/utils/app_typography.dart`, `assets/fonts/` |
 | Material theme for every standard widget | `lib/utils/app_theme.dart` |
 | Components: `AppCard`, `MoneyText` (৳1,00,000.00 with tabular digits), `StatusChip`, `IconTile`, `SectionHeader`, `Skeleton`, `PillTabBar`, `FloatingNavBar`, `ExpenseTile`, `Pressable` | `lib/widgets/ui/` |
 
-### Engineering decisions
-
-| Decision | Why |
-|---|---|
-| **Security rules in the database** | Every permission (approve only your own share, only the receiver confirms a payment, shares add up to the total, ...) is enforced by Firestore itself, so a modified app can't get around it |
-| **Firestore offline persistence** | Logging works with no signal. Screens wait a few seconds for the server, then let the change sync in the background |
-| **Transactions for approvals and settlement** | Two people approving at once can't overwrite each other, and a payment can't reduce a debt twice |
-| **Whole-cent money maths** | Equal splits spread the odd paisa, so shares always add up and debts can be paid down to exactly zero |
-| **Per-member approval map on each expense** | Each person decides only on their own share, and the expense finalises when all have approved |
-| **Website for iPhone** | The same Flutter app runs as a home-screen web app, so iPhone users need no App Store. Its files are kept on the phone by `web/sw.js`, so it opens and works offline like the Android app |
-| **Expiring join codes** | A shared code stops working after an hour unless the admin refreshes it |
-| **Audit log with SHA-256 payload hashes** | Expense events leave a verifiable trail |
+</details>
 
 ---
 
-## 🛠️ Tech stack
+## 🧰 Tech stack
 
 | Layer | Technology |
 |---|---|
-| Framework | Flutter and Dart |
-| State management | Provider (`ChangeNotifier`) |
-| Navigation | GoRouter with auth, email-verification and active-group guards |
-| Database | Cloud Firestore (real-time, offline-enabled) with security rules |
-| Authentication | Firebase Auth (Google Sign-In, email and password with email verification) |
-| Profile photos | Shrunk to ~20 KB and kept in Firestore (no paid file storage) |
-| Location | `geolocator`, `geocoding` |
-| Connectivity | `connectivity_plus` |
-| Utilities | `crypto`, `uuid`, `intl`, `shared_preferences`, `image_picker`, `cached_network_image`, `url_launcher` |
+| App | Flutter and Dart: one codebase for Android and the web |
+| State and navigation | Provider (`ChangeNotifier`), GoRouter with sign-in, email-verification and active-tour guards |
+| Database | Cloud Firestore: real-time, offline-enabled, guarded by security rules |
+| Sign-in | Firebase Auth: Google, and email and password with email verification |
+| Web app | Installable web app with a custom service worker, hosted on Cloudflare Pages with Pages Functions |
+| Device | `geolocator`, `geocoding`, `image_picker`, `connectivity_plus` |
+| Utilities | `crypto`, `uuid`, `intl`, `shared_preferences`, `cached_network_image`, `url_launcher`, `image` |
 
-About **14.5K lines of Dart** across 23 screens, 6 controllers, 7 services and 7 models.
+**~16.6K lines of Dart** · 23 screens · 6 controllers · 9 services · 7 models
 
 ---
 
-## 📲 Install on Android
+## 📲 Get the app
 
-No Play Store needed. Install the APK directly:
+<table>
+<tr>
+<th width="50%">🤖 Android</th>
+<th width="50%">🍏 iPhone</th>
+</tr>
+<tr>
+<td valign="top">
 
-1. On your Android phone, open **[⬇️ Taka-Koi.apk](https://github.com/Crux-15/Taka-Koi-/releases/latest/download/Taka-Koi.apk)**
+No Play Store needed:
+
+1. On your phone, open **[⬇️ Taka-Koi.apk](https://github.com/Crux-15/Taka-Koi-/releases/latest/download/Taka-Koi.apk)**
 2. If asked, allow installs from your browser
 3. Tap the downloaded file, then **Install**
 4. Open **Taka Koi?** and sign in 🎉
 
-> If you see "Install blocked", go to **Settings → Security → Install unknown apps** and allow your browser.
+<sub>"Install blocked"? Go to Settings → Security → Install unknown apps and allow your browser. The app asks for location (to tag expenses), photos (for your profile picture) and internet access.</sub>
 
-> **Updating from v1.0.0:** v1.1.0 is signed with a new release key, so Android won't install it over the old version. Open the old app while online (so anything you logged offline syncs), uninstall it, then install v1.1.0 and sign in. Your tours are stored online, so nothing is lost. If you signed up with email, you'll be asked to confirm your address once.
+</td>
+<td valign="top">
 
-The app asks for location (to tag expenses), camera and photos (for your profile picture) and internet access.
+No App Store needed:
+
+1. Open **[taka-koi.pages.dev](https://taka-koi.pages.dev)** in **Safari**
+2. Tap **Share**, then **Add to Home Screen**, then **Add**
+3. Open **Taka Koi** from the new icon and sign in there 🎉
+
+It opens full screen like an app and works offline once you've signed in. The icon keeps its own sign-in, separate from Safari.
+
+<p align="center"><img src="docs/screenshots/iphone-install.png" width="170" alt="The install guide on iPhone"/></p>
+
+</td>
+</tr>
+</table>
+
+> **Updating from v1.0.0 on Android:** v1.1.0 is signed with a new key, so Android won't install it over the old version. Open the old app once while online (so anything logged offline syncs), uninstall it, then install v1.1.0 and sign in. Your tours are stored online, so nothing is lost.
 
 ---
 
-## 🍏 Use on iPhone
+## 🔒 Security
 
-No App Store needed. The same app runs as a website that you keep on your Home Screen:
-
-1. On your iPhone, open **[taka-koi.pages.dev](https://taka-koi.pages.dev)** in **Safari**
-2. Tap the **Share** button, then **Add to Home Screen**, then **Add**
-3. Open **Taka Koi** from the new icon and sign in there 🎉
-
-The icon opens full screen like an app, and once you've signed in it works offline too: add expenses and approve with no signal, and everything syncs when you're back online. Signing in and creating an account need internet.
-
-> Sign in from the Home Screen icon, not the Safari tab. The icon keeps its own sign-in, separate from Safari.
+- **Firestore security rules are in this repository** ([`firestore.rules`](firestore.rules)). They enforce the permission model: members approve only their own shares and shares must add up to the total, debts are only created when an expense is finalised, only the receiver can confirm a payment, outsiders can't read tours, and bKash numbers are readable only by the person they were shared with
+- Email accounts must confirm their address before they can read or write any tour data
+- Firebase config files, signing keys and other secrets are kept out of version control
 
 ---
 
 ## 🔧 Build from source
 
-> The source is public for review. Under the [proprietary license](LICENSE), running or reusing it beyond the released APK needs the author's written permission.
+<details>
+<summary><b>Setup, release build and website deploy</b></summary>
 
-**Prerequisites**
-- Flutter stable (the committed `pubspec.lock` was resolved with Dart 3.12, so use a recent release)
-- Android Studio or VS Code, and a JDK (for `keytool`)
-- A Firebase project with **Firestore** and **Authentication** (Google and Email/Password) enabled (the free Spark plan is enough)
-- [FlutterFire CLI](https://firebase.flutter.dev/docs/cli): `dart pub global activate flutterfire_cli`
-- [Firebase CLI](https://firebase.google.com/docs/cli): `npm install -g firebase-tools`
+> The source is public for review. Under the [proprietary license](LICENSE), running or reusing it beyond the released app needs the author's written permission.
 
-**Setup**
+**Prerequisites:** Flutter stable (Dart 3.12+), a JDK, a Firebase project with Firestore and Authentication (Google and Email/Password) on the free Spark plan, the [FlutterFire CLI](https://firebase.flutter.dev/docs/cli) and the [Firebase CLI](https://firebase.google.com/docs/cli).
 
 ```bash
 git clone https://github.com/Crux-15/Taka-Koi-.git
 cd Taka-Koi-
 flutter pub get
-```
-
-1. **Connect Firebase.** Run `flutterfire configure` and choose your project and the Android package `com.tourtracker.tour_expense_tracker`. This generates `lib/firebase_options.dart` and `android/app/google-services.json`. Both are git-ignored, so every clone must generate its own.
-2. **Enable Google Sign-In.** Add your debug SHA-1 fingerprint to the Firebase Android app.
-3. **Deploy the security rules:** `firebase deploy --only firestore:rules`
-4. **Run it:**
-
-```bash
+flutterfire configure          # generates the git-ignored Firebase config
+firebase deploy --only firestore:rules
 flutter run
 ```
 
-**Release build**
+Add your debug SHA-1 to the Firebase Android app for Google Sign-In.
 
-Release builds are signed with your own release key and refuse to build without it, so an APK signed with a computer's debug key can't be shipped by mistake.
+**Android release:** release builds are signed with your own key, read from a git-ignored `android/key.properties`, and refuse to build without it, so a debug-signed APK can't ship by mistake. Add the key's SHA-1 and SHA-256 to Firebase, bump `version:` in `pubspec.yaml`, then run `flutter build apk --release`.
 
-1. Create the key once and keep it (and its passwords) somewhere safe. **Every future update must be signed with this same key.**
-   ```bash
-   keytool -genkey -v -keystore ~/taka-koi-release.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload
-   ```
-2. Create `android/key.properties` (git-ignored):
-   ```properties
-   storePassword=<the keystore password>
-   keyPassword=<the key password>
-   keyAlias=upload
-   storeFile=<full path to taka-koi-release.jks>
-   ```
-3. Add the key's SHA-1 and SHA-256 to the Firebase Android app (Project settings → Your apps), otherwise Google Sign-In fails in release builds. Print them with:
-   ```bash
-   keytool -list -v -keystore ~/taka-koi-release.jks -alias upload
-   ```
-4. Bump `version:` in `pubspec.yaml`, then build:
-   ```bash
-   flutter build apk --release
-   ```
+**Website:** `node tool/build_web.mjs --deploy` builds the web app, stamps the offline worker with this build's files and publishes it to Cloudflare Pages (after `npx wrangler login`). For a new site address, add it to Firebase Auth's authorized domains and add `https://<site>/__/auth/handler` to the Google OAuth web client's redirect URIs.
 
-**Website (the iPhone version)**
-
-Hosted for free on Cloudflare Pages at `taka-koi.pages.dev`.
-
-```bash
-npx wrangler login                     # once per computer
-node tool/build_web.mjs --deploy       # build, then publish
-```
-
-`tool/build_web.mjs` builds `build/web` and stamps the offline worker (`web/sw.js`) with this build's file list, so phones swap to the new version in one go the next time they open the app online. The `cloudflare/functions/` folder passes the site's `/__/auth/` addresses on to Firebase, which iPhone Safari needs for Google sign-in.
-
-One-time setup for a new site address:
-1. Firebase console → Authentication → Settings → **Authorized domains**: add the site's domain
-2. Google Cloud console → APIs & Services → Credentials → the **Web client** used by Firebase: add `https://<site>/__/auth/handler` to **Authorized redirect URIs**
-3. If the address isn't `taka-koi.pages.dev`, change `webHost` in `lib/main.dart`
+</details>
 
 ---
 
-## 🔒 Security notes
+## 🧭 Roadmap
 
-- **Firestore rules are in this repository** (`firestore.rules`). They enforce the permission model: members approve only their own shares and the shares must add up to the total, debts are only created when an expense is finalised, only the receiver can confirm a payment or reduce a debt, outsiders can't read tours, and bKash numbers are readable only by the person they were shared with
-- Email accounts must confirm their address before they can read or write any tour data
-- Firebase config files, signing keys and `.env` files are excluded from version control
-
----
-
-## 🗺️ Roadmap
-
-- [ ] Push notifications through Firebase Cloud Messaging (currently in-app only)
-- [ ] Debt simplification across the whole group to minimise the number of transfers
-- [ ] Cloud Functions for finalising expenses and ending idle tours on the server
-- [ ] Expense categories and trip summary charts
-- [ ] iOS build and a Play Store release
+- ✅ Offline approvals and payment confirmations
+- ✅ iPhone version as a home-screen web app
+- ⬜ Push notifications through Firebase Cloud Messaging (currently in-app only)
+- ⬜ Debt simplification across the whole group to minimise the number of transfers
+- ⬜ Cloud Functions for finalising expenses and ending idle tours on the server
+- ⬜ Trip summary charts by category
+- ⬜ Play Store release
 
 ---
 
@@ -339,12 +400,14 @@ One-time setup for a new site address:
 ## 📄 License
 
 **Proprietary software.** Copyright © 2025 Sadman Sakib. All rights reserved.
-You may download and use the APK for personal, non-commercial purposes. Copying, modifying or redistributing the source code is not permitted without written permission. See [LICENSE](LICENSE) for details.
+You may download and use the app for personal, non-commercial purposes. Copying, modifying or redistributing the source code is not permitted without written permission. See [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
 Made with 💛 for friends who travel together
+
+<sub>Built with Flutter, Firebase and Claude Code</sub>
 
 </div>
