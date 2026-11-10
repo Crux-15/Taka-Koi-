@@ -148,7 +148,7 @@ class _LogPaymentViewState extends State<LogPaymentView> {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
             child: Column(
               children: [
-                AvatarWidget(name: debt.toUserName, imageUrl: group.members[debt.toUserId]?.avatarUrl, size: 56),
+                AvatarWidget(name: debt.toUserName, uid: debt.toUserId, imageUrl: group.members[debt.toUserId]?.avatarUrl, size: 56),
                 const SizedBox(height: 10),
                 Text('You owe $name', style: t.bodyMedium?.copyWith(color: p.textMuted)),
                 const SizedBox(height: 2),

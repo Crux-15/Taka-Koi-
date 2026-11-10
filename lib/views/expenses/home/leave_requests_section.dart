@@ -38,7 +38,7 @@ class _LeaveRequestsSectionState extends State<LeaveRequestsSection> {
                     padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
                     child: Row(
                       children: [
-                        AvatarWidget(name: req['memberName'] as String? ?? 'Member', size: 38),
+                        AvatarWidget(name: req['memberName'] as String? ?? 'Member', uid: req['memberId'] as String?, size: 38),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(

@@ -235,6 +235,7 @@ class _IOweTab extends StatelessWidget {
 
         return _PersonCard(
           name:      name,
+          uid:       uid,
           avatarUrl: group.members[uid]?.avatarUrl,
           caption:   'You owe ${firstName(name)}',
           cents:     owed,
@@ -311,6 +312,7 @@ class _OwedToMeTab extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 14),
               child: _PersonCard(
                 name:      grouped[uid]!.first.fromUserName,
+                uid:       uid,
                 avatarUrl: group.members[uid]?.avatarUrl,
                 caption:   '${firstName(grouped[uid]!.first.fromUserName)} owes you',
                 cents:     grouped[uid]!.fold(0, (s, d) => s + d.remainingCents),
@@ -335,6 +337,7 @@ class _Note {
 /// One person's debts with you: total, the expenses behind it, notes, action.
 class _PersonCard extends StatelessWidget {
   final String name;
+  final String uid;
   final String? avatarUrl;
   final String caption;
   final int cents;
@@ -346,6 +349,7 @@ class _PersonCard extends StatelessWidget {
 
   const _PersonCard({
     required this.name,
+    required this.uid,
     required this.avatarUrl,
     required this.caption,
     required this.cents,
@@ -367,7 +371,7 @@ class _PersonCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              AvatarWidget(name: name, imageUrl: avatarUrl, size: 44),
+              AvatarWidget(name: name, uid: uid, imageUrl: avatarUrl, size: 44),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -497,7 +501,7 @@ class _PendingPaymentCardState extends State<_PendingPaymentCard> {
         children: [
           Row(
             children: [
-              AvatarWidget(name: pay.fromUserName, imageUrl: widget.group.members[pay.fromUserId]?.avatarUrl, size: 44),
+              AvatarWidget(name: pay.fromUserName, uid: pay.fromUserId, imageUrl: widget.group.members[pay.fromUserId]?.avatarUrl, size: 44),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(

@@ -49,6 +49,7 @@ class HomeHeader extends StatelessWidget {
                   AvatarStack(
                     names:     members.map((m) => m.name).toList(),
                     imageUrls: members.map((m) => m.avatarUrl).toList(),
+                    uids:      members.map((m) => m.userId).toList(),
                     size:      24,
                     max:       5,
                   ),

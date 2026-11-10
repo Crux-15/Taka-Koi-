@@ -375,7 +375,7 @@ class _ExpenseSummaryCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 7),
               child: Row(
                 children: [
-                  AvatarWidget(name: entry.value.name, imageUrl: group?.members[entry.key]?.avatarUrl, size: 30),
+                  AvatarWidget(name: entry.value.name, uid: entry.key, imageUrl: group?.members[entry.key]?.avatarUrl, size: 30),
                   const SizedBox(width: 10),
                   Expanded(child: Text(entry.value.name, style: t.bodyMedium)),
                   if (entry.key != expense.loggedBy && expense.approvals[entry.key] != null) ...[
@@ -475,7 +475,7 @@ class _ApprovalStatusSection extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    AvatarWidget(name: name, imageUrl: group?.members[uid]?.avatarUrl, size: 38),
+                    AvatarWidget(name: name, uid: uid, imageUrl: group?.members[uid]?.avatarUrl, size: 38),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(

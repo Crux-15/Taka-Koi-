@@ -218,7 +218,7 @@ class _PastTourDetailViewState extends State<PastTourDetailView> with SingleTick
                     padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Row(
                       children: [
-                        AvatarWidget(name: d.fromUserName, imageUrl: group.members[d.fromUserId]?.avatarUrl, size: 38),
+                        AvatarWidget(name: d.fromUserName, uid: d.fromUserId, imageUrl: group.members[d.fromUserId]?.avatarUrl, size: 38),
                         const SizedBox(width: 12),
                         Expanded(child: Text('${firstName(d.fromUserName)} owes you', style: t.titleSmall)),
                         MoneyText(d.remainingAmount, symbol: symbol, size: 15, color: p.positive, compact: true),
@@ -260,7 +260,7 @@ class _PastTourDetailViewState extends State<PastTourDetailView> with SingleTick
                   padding: const EdgeInsets.symmetric(vertical: 10),
                   child: Row(
                     children: [
-                      AvatarWidget(name: members[i].name, imageUrl: members[i].avatarUrl, size: 36),
+                      AvatarWidget(name: members[i].name, uid: members[i].userId, imageUrl: members[i].avatarUrl, size: 36),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(members[i].userId == myUid ? 'You' : members[i].name,
@@ -419,7 +419,7 @@ class _OweRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          AvatarWidget(name: debt.toUserName, imageUrl: avatarUrl, size: 38),
+          AvatarWidget(name: debt.toUserName, uid: debt.toUserId, imageUrl: avatarUrl, size: 38),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

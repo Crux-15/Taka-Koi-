@@ -116,7 +116,7 @@ class _GroupHubViewState extends State<GroupHubView> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      AvatarWidget(imageUrl: user?.avatarUrl, name: user?.name ?? 'U', size: 52, showBorder: true),
+                      AvatarWidget(imageUrl: user?.avatarUrl, uid: user?.uid, name: user?.name ?? 'U', size: 52, showBorder: true),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(

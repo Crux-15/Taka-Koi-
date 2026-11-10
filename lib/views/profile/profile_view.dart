@@ -169,7 +169,7 @@ class _ProfileViewState extends State<ProfileView> {
                         children: [
                           _avatarFile != null
                               ? ClipOval(child: Image.memory(_avatarFile!, width: 96, height: 96, fit: BoxFit.cover))
-                              : AvatarWidget(imageUrl: user.avatarUrl, name: user.name, size: 96, showBorder: true, onTap: _pickAvatar),
+                              : AvatarWidget(imageUrl: user.avatarUrl, uid: user.uid, name: user.name, size: 96, showBorder: true, onTap: _pickAvatar),
                           Positioned(
                             bottom: 2, right: 2,
                             child: Pressable(

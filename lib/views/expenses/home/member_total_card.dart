@@ -55,7 +55,7 @@ class MemberTotalCard extends StatelessWidget {
                   style: AppType.money(14, color: rank == 1 && total > 0 ? p.accent : p.textFaint)),
             ),
             const SizedBox(width: 10),
-            AvatarWidget(imageUrl: member.avatarUrl, name: member.name, size: 40, showBorder: rank == 1 && total > 0),
+            AvatarWidget(imageUrl: member.avatarUrl, uid: member.userId, name: member.name, size: 40, showBorder: rank == 1 && total > 0),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -121,7 +121,7 @@ class MemberTotalCard extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                AvatarWidget(imageUrl: member.avatarUrl, name: member.name, size: 72, showBorder: true),
+                AvatarWidget(imageUrl: member.avatarUrl, uid: member.userId, name: member.name, size: 72, showBorder: true),
                 const SizedBox(height: 12),
                 Text(member.name, style: t.headlineSmall?.copyWith(fontWeight: FontWeight.w700)),
                 const SizedBox(height: 4),

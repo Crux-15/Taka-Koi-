@@ -1,4 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart'
+    show ImageRenderMethodForWeb;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../services/avatar_service.dart';
@@ -8,8 +10,13 @@ import '../../utils/app_typography.dart';
 
 /// Round avatar: the photo if there is one, otherwise initials on a soft,
 /// per-person colour (the same person always gets the same colour).
+///
+/// Pass [uid] where the person is known: their current profile photo then
+/// shows even if [imageUrl] is an older copy (a tour keeps the photo a member
+/// had when they joined).
 class AvatarWidget extends StatelessWidget {
   final String? imageUrl;
+  final String? uid;
   final String  name;
   final double  size;
   final VoidCallback? onTap;
@@ -19,6 +26,7 @@ class AvatarWidget extends StatelessWidget {
   const AvatarWidget({
     super.key,
     this.imageUrl,
+    this.uid,
     required this.name,
     this.size      = 48,
     this.onTap,
@@ -73,26 +81,31 @@ class AvatarWidget extends StatelessWidget {
       ),
     );
 
-    final storedUid = AvatarService.uidFromToken(imageUrl);
-    final Widget photo;
-    if (storedUid != null) {
-      // Photo kept in the database (see AvatarService).
-      photo = ValueListenableBuilder<Uint8List?>(
-        valueListenable: AvatarStore.photoOf(storedUid),
-        builder: (_, bytes, __) => bytes == null
-            ? initials
-            : Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true, width: size, height: size),
-      );
-    } else if (imageUrl != null && imageUrl!.isNotEmpty) {
-      photo = CachedNetworkImage(
-        imageUrl:    imageUrl!,
-        fit:         BoxFit.cover,
-        placeholder: (_, __) => initials,
-        errorWidget: (_, __, ___) => initials,
-      );
-    } else {
-      photo = initials;
-    }
+    final tokenUid = AvatarService.uidFromToken(imageUrl);
+    final isWebUrl = tokenUid == null && imageUrl != null && imageUrl!.startsWith('http');
+    final fallback = isWebUrl
+        ? CachedNetworkImage(
+            imageUrl:    imageUrl!,
+            fit:         BoxFit.cover,
+            // On the website, download the photo and decode it like an
+            // uploaded one, instead of the browser-image shortcut (which can
+            // draw a black circle).
+            imageRenderMethodForWeb: ImageRenderMethodForWeb.HttpGet,
+            placeholder: (_, __) => initials,
+            errorWidget: (_, __, ___) => initials,
+          )
+        : initials;
+
+    // Uploaded profile photos live in the database (see AvatarService).
+    final photoUid = tokenUid ?? uid;
+    final Widget photo = photoUid == null
+        ? fallback
+        : ValueListenableBuilder<Uint8List?>(
+            valueListenable: AvatarStore.photoOf(photoUid),
+            builder: (_, bytes, __) => bytes == null
+                ? fallback
+                : Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true, width: size, height: size),
+          );
 
     Widget circle = ClipOval(child: SizedBox(width: size, height: size, child: photo));
 
@@ -116,6 +129,7 @@ class AvatarWidget extends StatelessWidget {
 class AvatarStack extends StatelessWidget {
   final List<String> names;
   final List<String?> imageUrls;
+  final List<String> uids;
   final double size;
   final int max;
   /// Colour of the gap ring between avatars (the surface they sit on).
@@ -125,6 +139,7 @@ class AvatarStack extends StatelessWidget {
     super.key,
     required this.names,
     this.imageUrls = const [],
+    this.uids = const [],
     this.size = 30,
     this.max = 4,
     this.ringColor,
@@ -152,6 +167,7 @@ class AvatarStack extends StatelessWidget {
                 child: AvatarWidget(
                   name:     shown[i],
                   imageUrl: i < imageUrls.length ? imageUrls[i] : null,
+                  uid:      i < uids.length ? uids[i] : null,
                   size:     size,
                 ),
               ),

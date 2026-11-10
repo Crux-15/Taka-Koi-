@@ -325,6 +325,7 @@ class _LogExpenseViewState extends State<LogExpenseView> {
                     name:     'You',
                     subtitle: _splitType == AppConstants.splitCustom ? 'You pay whatever is left' : user.name,
                     avatarName: user.name,
+                    avatarUid:  user.uid,
                     avatarUrl:  user.avatarUrl,
                     selected: _loggerIncluded,
                     share:    preview[user.uid]?.amount,
@@ -336,6 +337,7 @@ class _LogExpenseViewState extends State<LogExpenseView> {
                     _MemberPick(
                       name:       m.name,
                       avatarName: m.name,
+                      avatarUid:  m.userId,
                       avatarUrl:  m.avatarUrl,
                       selected:   _selectedMembers[m.userId] ?? false,
                       share:      _splitType == AppConstants.splitEqual ? preview[m.userId]?.amount : null,
@@ -463,6 +465,7 @@ class _MemberPick extends StatelessWidget {
   final String name;
   final String? subtitle;
   final String avatarName;
+  final String? avatarUid;
   final String? avatarUrl;
   final bool selected;
   final double? share;
@@ -476,6 +479,7 @@ class _MemberPick extends StatelessWidget {
     required this.symbol,
     required this.onTap,
     this.subtitle,
+    this.avatarUid,
     this.avatarUrl,
     this.share,
   });
@@ -493,7 +497,7 @@ class _MemberPick extends StatelessWidget {
             AnimatedOpacity(
               duration: const Duration(milliseconds: 200),
               opacity: selected ? 1 : 0.45,
-              child: AvatarWidget(name: avatarName, imageUrl: avatarUrl, size: 40),
+              child: AvatarWidget(name: avatarName, uid: avatarUid, imageUrl: avatarUrl, size: 40),
             ),
             const SizedBox(width: 12),
             Expanded(

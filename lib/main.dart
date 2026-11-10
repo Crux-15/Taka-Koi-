@@ -12,6 +12,7 @@ import 'controllers/debt_controller.dart';
 import 'controllers/notification_controller.dart';
 import 'controllers/theme_controller.dart';
 import 'firebase_options.dart';
+import 'widgets/common/app_frame.dart';
 import 'utils/app_theme.dart';
 import 'utils/app_constants.dart';
 import 'utils/app_router.dart';
@@ -107,6 +108,8 @@ class _TourExpenseAppState extends State<TourExpenseApp> {
       theme:            AppTheme.light,
       darkTheme:        AppTheme.dark,
       routerConfig:     _router,
+      // Tablets and computers: keep a comfortable width (see AppFrame).
+      builder:          (context, child) => AppFrame(child: child ?? const SizedBox.shrink()),
     );
   }
 }

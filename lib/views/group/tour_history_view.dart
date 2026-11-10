@@ -81,6 +81,7 @@ class _TourHistoryViewState extends State<TourHistoryView> {
                                   AvatarStack(
                                     names:     members.map((m) => m.name).toList(),
                                     imageUrls: members.map((m) => m.avatarUrl).toList(),
+                                    uids:      members.map((m) => m.userId).toList(),
                                     size:      22,
                                     ringColor: p.surface,
                                   ),

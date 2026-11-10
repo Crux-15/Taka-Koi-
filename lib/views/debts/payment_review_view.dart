@@ -194,12 +194,12 @@ class _PaymentReviewViewState extends State<PaymentReviewView> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    AvatarWidget(name: pay.fromUserName, size: 48),
+                    AvatarWidget(name: pay.fromUserName, uid: pay.fromUserId, size: 48),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       child: Icon(Icons.arrow_forward_rounded, color: p.textFaint),
                     ),
-                    AvatarWidget(name: pay.toUserName, size: 48),
+                    AvatarWidget(name: pay.toUserName, uid: pay.toUserId, size: 48),
                   ],
                 ),
                 const SizedBox(height: 14),

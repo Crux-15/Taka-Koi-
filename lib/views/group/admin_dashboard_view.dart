@@ -86,7 +86,7 @@ class _MembersTab extends StatelessWidget {
         final isSelf  = m.userId == currentUid;
         return Card(
           child: ListTile(
-            leading:  AvatarWidget(imageUrl: m.avatarUrl, name: m.name, size: 44),
+            leading:  AvatarWidget(imageUrl: m.avatarUrl, uid: m.userId, name: m.name, size: 44),
             title:    Text(m.name, style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text(isAdmin ? 'Started the tour' : 'Member',
                 style: TextStyle(fontSize: 12, color: isAdmin ? AppColors.primary : null)),
