@@ -78,3 +78,10 @@ ui-debug.log
 .wrangler/
 # Golden test failure output
 test_screenshots/failures/
+
+# Kept on this computer only (not published): tests, rule tests,
+# demo data, the migration and the signing-key script
+/test/
+/test_screenshots/
+/rules_test/
+/tool/create_release_key.ps1

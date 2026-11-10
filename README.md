@@ -32,18 +32,11 @@ So I built **Taka Koi?**: log an expense the moment it happens, let the app do t
 
 It works offline, because trips don't promise good signal.
 
-<!--
-SCREENSHOTS (add before publishing, then delete this comment wrapper)
-1. Create a folder: docs/screenshots/
-2. Save 4 to 6 phone screenshots there (suggested: home, log-expense, approval, debts, group-hub, dark-mode)
-3. Uncomment the block below
-
 ## 📸 Screenshots
 
-| Home | Log expense | Approve a share | Debts |
+| Home | Log expense | Approve a share | Balances |
 |:---:|:---:|:---:|:---:|
 | <img src="docs/screenshots/home.png" width="200"/> | <img src="docs/screenshots/log-expense.png" width="200"/> | <img src="docs/screenshots/approval.png" width="200"/> | <img src="docs/screenshots/debts.png" width="200"/> |
--->
 
 ---
 
@@ -142,7 +135,7 @@ flowchart LR
 ```
 lib/
 ├── main.dart              # Firebase init, offline persistence, providers, theme
-├── controllers/           # State and business logic (services can be swapped for fakes in tests)
+├── controllers/           # State and business logic
 ├── models/                # User, Group, Expense, Debt, Payment, Notification, bKash share
 ├── services/              # Firestore, Auth, profile photos, bKash sharing and GPS access
 ├── utils/                 # Router, theme, colours, constants, money and split maths, offline helpers
@@ -151,9 +144,7 @@ lib/
 │   ├── expenses/          # home_view.dart + home/ (its cards and sections)
 │   └── profile/           # profile_view.dart + widgets/ (join code, invite sheet)
 └── widgets/common/        # Reusable components (buttons, avatars, banners)
-test/                      # Unit tests: money, split maths, offline writes, controllers
 firestore.rules            # Database security rules
-rules_test/                # Rule tests (Firebase emulator) and the one-off data migration
 web/                       # Website: home-screen icon, manifest, offline worker (sw.js)
 cloudflare/functions/      # Website sign-in pass-through to Firebase (/__/auth)
 tool/build_web.mjs         # Builds (and with --deploy publishes) the website
@@ -190,7 +181,7 @@ avatars/{uid}                    # profile photo, a small JPEG (≤90 KB)
 
 | Decision | Why |
 |---|---|
-| **Security rules with emulator tests** | Every permission (approve only your own share, only the receiver confirms a payment, shares add up to the total, ...) is enforced by the database and covered by ~100 tests |
+| **Security rules in the database** | Every permission (approve only your own share, only the receiver confirms a payment, shares add up to the total, ...) is enforced by Firestore itself, so a modified app can't get around it |
 | **Firestore offline persistence** | Logging works with no signal. Screens wait a few seconds for the server, then let the change sync in the background |
 | **Transactions for approvals and settlement** | Two people approving at once can't overwrite each other, and a payment can't reduce a debt twice |
 | **Whole-cent money maths** | Equal splits spread the odd paisa, so shares always add up and debts can be paid down to exactly zero |
@@ -214,7 +205,6 @@ avatars/{uid}                    # profile photo, a small JPEG (≤90 KB)
 | Location | `geolocator`, `geocoding` |
 | Connectivity | `connectivity_plus` |
 | Utilities | `crypto`, `uuid`, `intl`, `shared_preferences`, `image_picker`, `cached_network_image`, `url_launcher` |
-| Testing | `flutter_test`; rules with `@firebase/rules-unit-testing` on the Firebase emulator |
 
 About **14.5K lines of Dart** across 23 screens, 6 controllers, 7 services and 7 models.
 
@@ -251,13 +241,13 @@ The icon opens full screen like an app, and once you've signed in it works offli
 
 ---
 
-## 🧪 Build from source
+## 🔧 Build from source
 
 > The source is public for review. Under the [proprietary license](LICENSE), running or reusing it beyond the released APK needs the author's written permission.
 
 **Prerequisites**
 - Flutter stable (the committed `pubspec.lock` was resolved with Dart 3.12, so use a recent release)
-- Android Studio or VS Code, and a JDK (for `keytool` and the Firebase emulator)
+- Android Studio or VS Code, and a JDK (for `keytool`)
 - A Firebase project with **Firestore** and **Authentication** (Google and Email/Password) enabled (the free Spark plan is enough)
 - [FlutterFire CLI](https://firebase.flutter.dev/docs/cli): `dart pub global activate flutterfire_cli`
 - [Firebase CLI](https://firebase.google.com/docs/cli): `npm install -g firebase-tools`
@@ -278,34 +268,6 @@ flutter pub get
 ```bash
 flutter run
 ```
-
-**Tests**
-
-```bash
-flutter test
-cd rules_test && npm install && npm test
-```
-
-The second command runs the security-rule tests on the Firebase emulator (see [`rules_test/README.md`](rules_test/README.md)), including an end-to-end run of a whole tour that sends exactly what the app sends, from sign-up to settling up after the tour ends.
-
-**Screenshots of every screen** (light and dark, with demo data, no Firebase needed):
-
-```bash
-flutter test test_screenshots --update-goldens
-```
-
-The images land in `test_screenshots/goldens/`. Run it without `--update-goldens` to check a change didn't alter any screen by accident.
-
-**Try the app with demo data** (local emulators, never touches the real project):
-
-```bash
-cd rules_test
-firebase emulators:start --only auth,firestore --project demo-taka-koi
-node seed_emulator.mjs
-cd .. && flutter run -d chrome --dart-define=USE_EMULATORS=true
-```
-
-Sign in as `nafis@taka.test` (the tour admin) with the demo password in `rules_test/seed_emulator.mjs`.
 
 **Release build**
 
@@ -351,10 +313,9 @@ One-time setup for a new site address:
 
 ## 🔒 Security notes
 
-- **Firestore rules are in this repository** (`firestore.rules`) with emulator tests in `rules_test/`. They enforce the permission model: members approve only their own shares and the shares must add up to the total, debts are only created when an expense is finalised, only the receiver can confirm a payment or reduce a debt, outsiders can't read tours, and bKash numbers are readable only by the person they were shared with
+- **Firestore rules are in this repository** (`firestore.rules`). They enforce the permission model: members approve only their own shares and the shares must add up to the total, debts are only created when an expense is finalised, only the receiver can confirm a payment or reduce a debt, outsiders can't read tours, and bKash numbers are readable only by the person they were shared with
 - Email accounts must confirm their address before they can read or write any tour data
 - Firebase config files, signing keys and `.env` files are excluded from version control
-- Known limits of rules without server code: when an expense is finalised, the rules check the finalising member's own debt but can't check everyone else's in the same write, and an admin can delete an expense that has no payments against it. Moving finalisation into Cloud Functions would close the first gap
 
 ---
 
